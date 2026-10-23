@@ -97,6 +97,10 @@ export const DEF = {
   // The nutrition log (lib/nutrition.js): meals, water per day, daily targets; merged across
   // devices like weigh-ins and day notes (lib/sync-merge.js). The Home card folds away in Settings.
   meals: [], water: {}, nutritionTargets: null, showNutritionCard: true,
+  // What to call you: on Home, in the chat's greeting, and — because it is typed here for that
+  // purpose — what the Coach is told to call you (payload coachProfile.name). Never the account
+  // name, which stays out of every payload.
+  displayName: '',
   queue: null,   // a planner's floating week (lib/queue.js) — via the API, or by this rotation feature (below)
   // The in-app rotation's reusable definition — { id, sequence, label } (lib/rotation.js). Never
   // a live queue: it only ever feeds `queue`, and `queue.rotationId` says the pass is managed here.

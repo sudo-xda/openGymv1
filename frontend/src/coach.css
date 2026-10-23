@@ -440,3 +440,14 @@
 .rec-bar{width:110px;height:6px}
 .rec-bar i{transition:width var(--med) var(--ease)}
 .rec-more{display:block;background:none;color:var(--acc);font-size:13px;font-weight:500;padding:8px 0 2px}
+
+/* the way past the questionnaire for someone who only wants to talk */
+.ob-skip-all{display:inline-flex;align-items:center;gap:6px;margin:-14px 0 18px;padding:7px 12px;border-radius:99px;background:var(--surface);color:var(--acc);font-size:13px;font-weight:500;border:1px solid var(--sep-op)}
+.ob-skip-all .icn{font-size:14px}
+
+/* the Coach's door on Home: a chat bubble that reads like a messenger */
+.coach-door{display:flex;align-items:center;gap:12px}
+.coach-door .coach-av{width:44px;height:44px;border-radius:99px;background:linear-gradient(135deg,var(--acc),var(--purple));color:var(--on-acc);display:flex;align-items:center;justify-content:center;font-size:22px;flex:none;position:relative;box-shadow:0 0 16px color-mix(in srgb,var(--acc) 45%,transparent)}
+.coach-door .coach-av i{position:absolute;right:1px;bottom:1px;width:11px;height:11px;border-radius:99px;background:var(--green);border:2px solid var(--surface)}
+.coach-door .ttl{font-size:17px}
+.coach-door .ss{font-size:13px;color:var(--label-2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

@@ -805,6 +805,14 @@ export default function Settings({ page = null, find = null, via = null, entryKe
           />
         </Row>
       </Section>
+      <Section title={t('Your name')} footer={t('Shown on Home and in the chat, and the Coach is told to call you this. Leave it empty and nothing is shared.')}>
+        <Row icon="personCircle" iconTint="var(--acc)" title={t('Name')}>
+          <TextField value={S.displayName || ''} maxLength={40} placeholder={t('Optional')} autoComplete="given-name"
+            onChange={e => update(s => { s.displayName = e.target.value.replace(/\s+/g, ' ').trimStart().slice(0, 40) })}
+            onBlur={e => update(s => { s.displayName = e.target.value.trim().slice(0, 40) })}
+            style={{ width: 150, textAlign: 'end' }} />
+        </Row>
+      </Section>
       <Section title={t('On Home')}>
         {/* Membership QR codes on Home (views/CheckIn.jsx); off = no Home card, no route. */}
         <Row icon="qr" iconTint="var(--blue)" title={t('Gym check-in')}

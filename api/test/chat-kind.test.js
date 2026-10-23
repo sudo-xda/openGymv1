@@ -133,3 +133,14 @@ test('a chat without a question is refused at the route, before anything is queu
   assert.equal(res.status, 400);
   assert.equal(res.body.code, 'noquestion');
 });
+
+test('a name typed for the Coach rides as coachProfile.name; the account name never does', () => {
+  const named = payload.build(sampleState({ displayName: '  Alex  ' }), { handle: 'h'.repeat(16), kind: 'chat', question: 'q' });
+  assert.equal(named.coachProfile.name, 'Alex');
+  const none = payload.build(sampleState({ displayName: '' }), { handle: 'h'.repeat(16), kind: 'chat', question: 'q' });
+  assert.equal(none.coachProfile.name, undefined);
+  // Someone who skipped the questionnaire still gets addressed: a profile of just the name.
+  const skipped = payload.build(sampleState({ displayName: 'Sam', coach: { consent: { agreedAt: 'x', version: 3 }, profile: null } }), { handle: 'h'.repeat(16), kind: 'chat', question: 'q' });
+  assert.deepEqual(skipped.coachProfile, { name: 'Sam' });
+  assert.ok(!JSON.stringify(named).includes('"user"'), 'no account field');
+});

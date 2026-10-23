@@ -131,6 +131,18 @@ export default function CoachIntake() {
     }
   }
 
+  // The questions exist for a plan. Someone who only wants to chat, log a meal or read a debrief
+  // does not owe the Coach seven answers first: the profile is saved as far as it got and the
+  // chat opens; the Coach says "no history yet" where it has nothing, and the answers can be
+  // filled in later from the chat's menu (Edit my answers).
+  const skipAll = () => {
+    update(s => {
+      const c = (s.coach = s.coach || emptyCoach())
+      c.profile = { ...p, daysPerWeek: Math.min(7, Math.max(1, p.daysPerWeek ?? 3)), skipped: true }
+    })
+    nav('/coach', { replace: true })
+  }
+
   const toggleDay = d => set({
     preferredDays: p.preferredDays.includes(d) ? p.preferredDays.filter(x => x !== d) : [...p.preferredDays, d].sort()
   })
@@ -149,6 +161,9 @@ export default function CoachIntake() {
       </div>}
       {optional && !last ? <button className="ob-skip" onClick={next}>{t('Skip')}</button> : <span style={{ width: 36 }} />}
     </div>
+    {key !== 'consent' && !editing && <button className="ob-skip-all" onClick={skipAll} disabled={busy}>
+      <Icon name="chat" />{t('Skip the questions and open the chat')}
+    </button>}
 
     <div className="ob-body">
       {key === 'consent' && <Consent onAgree={agree} onDecline={() => nav('/plan')} />}

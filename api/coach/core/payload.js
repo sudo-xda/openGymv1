@@ -505,6 +505,11 @@ export function build(S, opts = {}) {
   if (p.coachProfile && !p.coachProfile.equipment.length) {
     p.coachProfile.equipment = cleanProfile({ equipment: activeEquipment(S) }).equipment;
   }
+  // What to call them: a name typed in Settings for this purpose, and only that — the account's
+  // name stays out, as it always has. Carried even without an intake profile, so a person who
+  // skipped the questions is still addressed properly.
+  const callMe = word(typeof S.displayName === 'string' ? S.displayName.trim() : null, 40);
+  if (callMe) p.coachProfile = { ...(p.coachProfile || {}), name: callMe };
 
   // What the user already turned down, so the Coach does not re-propose it without new
   // evidence (FR-26). Summaries only — the log's full before/after stays on the device.

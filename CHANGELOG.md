@@ -24,6 +24,11 @@ The Coach learns to talk, and to write up every workout by itself.
 - **Share a workout card.** From the finish summary and from any past session: a dark card with
   the duration, sets, volume, a PR badge, the top lifts and the new records, as a 9:16 story, a
   1:1 square or the fitted card, previewed before it goes to the share sheet or your downloads.
+- **The Coach from Home.** A chat-bubble card on Home opens the conversation, showing the
+  last thing said. The questionnaire can be skipped: one tap opens the chat with whatever was
+  answered, and the questions wait in the chat's menu under Edit my answers. Settings → Your
+  name sets what Home, the chat and the Coach call you; it is the only name ever sent, and
+  only when you typed it there.
 - **Nutrition.** A food log, from Home: meals with calories and macros, water, and daily targets
   the app suggests from your body weight and goal. Log a meal three ways: a quick-add list of
   common foods at USDA servings (type "2 eggs and toast" and it reads the words), the numbers

@@ -6,6 +6,31 @@ import { fmtNum, fmtDate, todayISO, isoOf, weekStartOf, weekDayOffset, DAYS, DAY
 import { t, tn, dateLocale } from '../lib/i18n.js'
 import { bwSheet, goalSheet, dayOverrideSheet, calendarSheet, startFlow, starterPlanSheet, bwDeltaColor, weighInsSheet } from '../sheets.jsx'
 import { NutritionCard } from './Nutrition.jsx'
+import { useCoachGate } from '../lib/use-coach-gate.js'
+import { plainText } from '../lib/markdown.js'
+
+/** The chat, from Home: a bubble with the last thing said, only while there is a Coach to talk to. */
+function CoachDoor({ S, nav }) {
+  const gate = useCoachGate()
+  if (!gate.ok) return null
+  const threads = S.coach?.threads || []
+  const th = threads.find(x => x.id === S.coach?.activeThread) || threads[threads.length - 1]
+  const lastLine = [...(th?.messages || [])].reverse().find(m => typeof m.text === 'string' && m.text.trim())
+  const snippet = lastLine ? (lastLine.md ? plainText(lastLine.text) : lastLine.text).replace(/\s+/g, ' ').slice(0, 90) : t('Ask about your training, your food or your next session.')
+  return <div className="card tappable" style={{ cursor: 'pointer' }} {...tappable(() => nav('/coach'))} data-coach-door>
+    <div className="row between">
+      <div className="coach-door" style={{ minWidth: 0 }}>
+        <span className="coach-av"><Icon name="chat" /><i /></span>
+        <div style={{ minWidth: 0 }}>
+          <div className="lbl2">{t('AI Coach')}</div>
+          <div className="ttl">{th?.title && th.messages?.length ? th.title : t('Chat with your Coach')}</div>
+          <div className="ss">{snippet}</div>
+        </div>
+      </div>
+      <Icon name="chevronRight" className="chev" />
+    </div>
+  </div>
+}
 import LineChart from '../components/LineChart.jsx'
 import Icon from '../components/Icon.jsx'
 import QueueRow from '../components/QueueRow.jsx'
@@ -104,7 +129,7 @@ export default function Home() {
 
   return <div className="narrow">
     <div className="hdr">
-      <div><h1>{user ? t('Hi {0}', user.name) : 'openGym'}</h1><div className="sub">{today.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</div></div>
+      <div><h1>{S.displayName || user?.name ? t('Hi {0}', S.displayName || user.name) : 'openGym'}</h1><div className="sub">{today.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</div></div>
       <button className="iconbtn" onClick={() => nav('/settings')} aria-label={trouble ? t('Settings') + ', ' + t('Connection problem') : t('Settings')}><Icon name="gear" />{trouble && <span className="tab-dot" aria-hidden="true" />}</button>
     </div>
 
@@ -188,6 +213,8 @@ export default function Home() {
         <div style={{ height: 8 }} /><Button onClick={() => nav('/plan')}>{t('Build my own plan')}</Button>
       </div>
     )}
+
+    <CoachDoor S={S} nav={nav} />
 
     {S.showNutritionCard !== false && <NutritionCard />}
 

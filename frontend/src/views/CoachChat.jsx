@@ -323,7 +323,9 @@ const providerName = p => (p ? PROVIDER_NAMES[p] || p : '')
  */
 function Welcome({ S, user, onAsk, jobs }) {
   const [cat, setCat] = useState('workouts')
-  const name = user?.name || t('athlete')
+  // The name set in Settings first: it is the one the Coach is told to use, so the greeting and
+  // the answers agree; a signed-in name next, then a plain word.
+  const name = S.displayName || user?.name || t('athlete')
   const ws = weekStartOf(S)
   const wk = weekKey(todayISO(), ws)
   const week = (S.workouts || []).filter(w => w?.d && weekKey(w.d, ws) === wk)
