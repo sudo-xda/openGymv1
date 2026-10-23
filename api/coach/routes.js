@@ -111,6 +111,37 @@ export function coachRoutes({ json, readBody, readSession, requireAdmin }) {
       } catch (e) { failEnqueue(res, e); }
     },
 
+    // A question, answered in prose. Nothing to apply — the reply lands in the thread the app
+    // sent and the proposal is cleared as soon as the app has read it.
+    'POST /api/coach/ask': async (req, res) => {
+      const user = guard(req, res); if (!user) return;
+      const body = await readBody(req);
+      const question = body.question ? String(body.question).slice(0, cfgStore.MAX_MESSAGE_LEN_CEILING) : '';
+      if (!question.trim()) return json(res, 400, { error: 'question is required', code: 'noquestion' });
+      try {
+        const job = jobs.enqueue(user.id, {
+          kind: 'chat',
+          lang: body.lang,
+          question,
+          conversation: Array.isArray(body.conversation) ? body.conversation : null
+        });
+        json(res, 202, { job });
+      } catch (e) { failEnqueue(res, e); }
+    },
+
+    // A meal in words → items with calories and macros, or { suggest: true } → three meals for
+    // what is left of today's targets. The app logs what comes back only when the person taps it.
+    'POST /api/coach/meal': async (req, res) => {
+      const user = guard(req, res); if (!user) return;
+      const body = await readBody(req);
+      const text = body.text ? String(body.text).slice(0, 500) : '';
+      if (!body.suggest && !text.trim()) return json(res, 400, { error: 'text is required', code: 'nomeal' });
+      try {
+        const job = jobs.enqueue(user.id, { kind: 'meal', lang: body.lang, meal: body.suggest ? { suggest: true } : { text } });
+        json(res, 202, { job });
+      } catch (e) { failEnqueue(res, e); }
+    },
+
     /* How this profile sits against everyone else on the instance who opted in: medians only,
        at least three people, and nothing for a profile that does not share itself. */
     'GET /api/coach/cohort': async (req, res) => {

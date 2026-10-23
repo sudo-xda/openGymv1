@@ -2,9 +2,10 @@
  * file is generated from it (scripts/build-coach-assets.mjs) so the same text is importable by
  * the server under bare node and by the phone under Vite, with neither reading a file. */
 import { PROMPTS } from './prompts.js';
+import { foodAnchorLines } from './foods.js';
 
 export const taskOf = (kind, payload) =>
-  kind === 'review' ? 'review' : kind === 'debrief' ? 'debrief' : payload && payload.refine ? 'refine' : 'create';
+  kind === 'review' ? 'review' : kind === 'debrief' ? 'debrief' : kind === 'chat' ? 'chat' : kind === 'meal' ? (payload && payload.mealGap ? 'mealsuggest' : 'meal') : payload && payload.refine ? 'refine' : 'create';
 
 /**
  * The prompt in two parts: `system` is the rules — byte-identical for every job of the same
@@ -22,7 +23,9 @@ export function buildPromptParts(kind, payload, repair) {
   // plan format to follow at all, and a request like "swap the leverage machine" came back as
   // a review-style change list the plan validator can only reject (#471).
   const rules = task === 'refine' ? PROMPTS.create + '\n\n---\n\n' + PROMPTS.refine : PROMPTS[task];
-  const system = PROMPTS.common + '\n\n---\n\n' + rules;
+  // The meal task quotes the anchor table from foods.js, so the prompt and the app's quick-add
+  // list can never disagree about what an egg is.
+  const system = PROMPTS.common + '\n\n---\n\n' + (task === 'meal' ? rules.replace('{{FOODS}}', foodAnchorLines()) : rules);
   // Compact JSON, not pretty-printed: the indentation was ~30% of the payload's tokens and
   // a model reads either just as well.
   let user = '## Payload\n\n```json\n' + JSON.stringify(payload) + '\n```\n';

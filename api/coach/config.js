@@ -327,7 +327,8 @@ export function isConnected() {
 export function publicConfig() {
   if (!isEnabled() || !isConnected()) return null;
   const cfg = load();
-  return { enabled: true, provider: cfg.provider, providerLabel: providerMeta(cfg).label, authMode: cfg.authMode, community: !!cfg.community };
+  // The model's name too: the chat's status pill says what is answering ("Anthropic · claude…").
+  return { enabled: true, provider: cfg.provider, providerLabel: providerMeta(cfg).label, model: modelFor(cfg), authMode: cfg.authMode, community: !!cfg.community };
 }
 
 /**

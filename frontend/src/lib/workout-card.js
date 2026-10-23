@@ -11,11 +11,18 @@ import { EXIDX } from './exercises.js'
 import { isWarmupRow } from './workout-model.js'
 import { MUSCLES, INERT, levelsOf, loadOfWorkouts } from './muscles.js'
 import { fmtDate, fmtDur, fmtNum, fmtVol, capWords } from './format.js'
+import { bestSetOf } from './onerm.js'
 import { t, exerciseNameClass } from './i18n-core.js'
 
 export const CARD_WIDTH = 1080
 const PAD = 88
 const MIN_HEIGHT = 720
+// The two social formats (#share-card): an Instagram/WhatsApp story and a square post, both at
+// a fixed size the card's content is centred in; 'auto' is the original card, as tall as it
+// needs to be. The story and the square are painted in the brand's dark palette whatever the
+// app's theme, so a card looks the same in every feed.
+export const FORMATS = { auto: null, story: { width: 1080, height: 1920 }, square: { width: 1080, height: 1080 } }
+export const MAX_TOP_LIFTS = 3
 // More than this many new bests and the rest are counted instead of listed: a card that grows
 // past a phone screen is not glanceable any more.
 export const MAX_RECORDS = 6
@@ -47,9 +54,19 @@ export function workoutCardModel(w, { unit, nameOf }) {
   const day = workoutDay(w)
   const ms = workoutDuration(w)
   const levels = levelsOf(loadOfWorkouts([w]))
+  // The heaviest work of the session: each exercise's best set by estimated 1RM, the top three.
+  // A bodyweight or timed exercise has no estimate and stays out, as it does in Stats.
+  const topLifts = entries.map(e => {
+    const best = bestSetOf(e)
+    if (!best || !(best.w > 0)) return null
+    const name = nameOf(e)
+    return { name: exerciseNameClass(EXIDX[e.id]) ? capWords(name) : name, line: `${fmtNum(best.w)} ${unit} × ${best.r}`, est: best.est }
+  }).filter(Boolean).sort((a, b) => b.est - a.est).slice(0, MAX_TOP_LIFTS).map(({ est, ...x }) => x)
   return {
     title: w.name || '',
     date: day ? fmtDate(day, true, true) : '',
+    prCount: records.length,
+    topLifts,
     // Imported history has no clock: an unknown duration is left out rather than shown as 0.
     stats: [
       ...(ms >= 60000 ? [{ label: t('Duration'), value: fmtDur(ms) }] : []),
@@ -101,11 +118,39 @@ function fitSize(text, width, measure, weight, max, min = 28) {
  * a flat list of items for drawWorkoutCard; a text item carries its size and weight, the font
  * family is the drawer's.
  */
-export function layoutWorkoutCard(model, { measure, rtl = false, width = CARD_WIDTH, map = null }) {
+export function layoutWorkoutCard(model, { measure, rtl = false, width = CARD_WIDTH, map = null, format = 'auto' }) {
+  const fixed = FORMATS[format] || null
+  if (!fixed) return flowCard(model, { measure, rtl, width, map, lifts: true, records: MAX_RECORDS })
+  // A fixed frame: the content is laid out as the flowing card is, then centred in the frame.
+  // What does not fit gives way in order — the map first, then the top lifts, then the records
+  // are counted rather than listed — so a card never runs past its own edge.
+  const attempts = [
+    { map, lifts: true, records: MAX_RECORDS },
+    { map: null, lifts: true, records: MAX_RECORDS },
+    { map: null, lifts: true, records: 3 },
+    { map: null, lifts: false, records: 3 },
+    { map: null, lifts: false, records: 1 },
+  ]
+  let layout = null
+  for (const a of attempts) {
+    layout = flowCard(model, { measure, rtl, width: fixed.width, map: a.map, lifts: a.lifts, records: a.records, frame: fixed.height })
+    if (layout.height <= fixed.height) break
+  }
+  const shift = Math.max(0, Math.round((fixed.height - layout.height) / 2))
+  const items = layout.items.map(it => (it.brand ? { ...it, y: fixed.height - PAD } : { ...it, y: it.y + shift }))
+  return { width: fixed.width, height: fixed.height, rtl, items, format, decor: true }
+}
+
+function flowCard(model, { measure, rtl, width, map, lifts, records: maxRecords, frame = null }) {
   const items = []
   const inner = width - PAD * 2
   const start = rtl ? width - PAD : PAD
+  const end = rtl ? PAD : width - PAD
   const dir = rtl ? -1 : 1
+  // A fixed frame is tighter between sections: a square has room for the numbers, the lifts
+  // and the records only if they sit closer than the flowing card spaces them.
+  const sectionGap = frame ? 40 : 52
+  const tail = frame ? 40 : 64
   let y = PAD
   const text = (str, size, weight, color, x = start, extra) => {
     items.push({ kind: 'text', text: str, x, y: y + size, size, weight, color, ...extra })
@@ -113,6 +158,12 @@ export function layoutWorkoutCard(model, { measure, rtl = false, width = CARD_WI
   }
 
   items.push({ kind: 'bar', x: start, y, w: 96 * dir, h: 10 })
+  // The PR badge sits on the bar's line, at the far edge: "PR ×3", or just "PR" for one.
+  if (model.prCount > 0) {
+    const label = model.prCount > 1 ? `PR ×${model.prCount}` : 'PR'
+    const bw = Math.round(measure(label, 700, 30) + 44)
+    items.push({ kind: 'badge', text: label, x: rtl ? end : end - bw, y: y - 22, w: bw, h: 54, size: 30 })
+  }
   y += 10 + 52
   for (const line of wrapText(model.title, inner, s => measure(s, 700, 76), TITLE_LINES)) text(line, 76, 700, 'label')
   if (model.date) { y += 4; text(model.date, 38, 400, 'label2') }
@@ -170,13 +221,27 @@ export function layoutWorkoutCard(model, { measure, rtl = false, width = CARD_WI
     y += sw
   }
 
+  // The heaviest sets: name on the reading side, the set on the other, one line each.
+  if (lifts && (model.topLifts || []).length) {
+    y += sectionGap
+    text(t('Top lifts'), 34, 600, 'acc')
+    y += 10
+    for (const lift of model.topLifts) {
+      const valueW = measure(lift.line, 600, 40)
+      const [name] = wrapText(lift.name, inner - valueW - 32, s => measure(s, 500, 40), 1)
+      items.push({ kind: 'text', text: lift.line, x: end, y: y + 40, size: 40, weight: 600, color: 'label', anchor: rtl ? 'left' : 'right' })
+      text(name, 40, 500, 'label2')
+      y += 10
+    }
+  }
+
   if (model.records.length) {
-    y += 52
+    y += sectionGap
     text(t('New personal records'), 34, 600, 'acc')
     y += 10
     const icon = 44
     const indent = icon + 22
-    const shown = model.records.length > MAX_RECORDS ? model.records.slice(0, MAX_RECORDS - 1) : model.records
+    const shown = model.records.length > maxRecords ? model.records.slice(0, Math.max(0, maxRecords - 1)) : model.records
     for (const name of shown) {
       items.push({ kind: 'trophy', x: rtl ? start - icon : start, y: y + 4, size: icon })
       const [line] = wrapText(name, inner - indent, s => measure(s, 500, 42), 1)
@@ -186,9 +251,9 @@ export function layoutWorkoutCard(model, { measure, rtl = false, width = CARD_WI
     if (shown.length < model.records.length) text(t('and {0} more', model.records.length - shown.length), 38, 400, 'label2', start + indent * dir)
   }
 
-  y += 64
-  const height = Math.max(MIN_HEIGHT, Math.round(y + 34 + PAD))
-  items.push({ kind: 'text', text: 'openGym', x: start, y: height - PAD, size: 34, weight: 700, color: 'acc' })
+  y += tail
+  const height = Math.max(frame ? 0 : MIN_HEIGHT, Math.round(y + 34 + PAD))
+  items.push({ kind: 'text', brand: true, text: 'openGym', x: start, y: height - PAD, size: 34, weight: 700, color: 'acc' })
   return { width, height, rtl, items }
 }
 
@@ -266,12 +331,37 @@ export function drawWorkoutCard(ctx, layout, colors, map = null, family = CARD_F
   ctx.fillStyle = colors.surface
   roundRect(ctx, inset, inset, width - inset * 2, height - inset * 2, 48)
   ctx.fill()
+  // The social formats get two soft pools of the accent in opposite corners, clipped to the
+  // card: enough to read as a designed card in a feed, not enough to fight the numbers.
+  if (layout.decor && typeof ctx.createRadialGradient === 'function') {
+    ctx.save()
+    roundRect(ctx, inset, inset, width - inset * 2, height - inset * 2, 48)
+    ctx.clip()
+    for (const [cx, cy] of [[width * 0.9, height * 0.08], [width * 0.1, height * 0.95]]) {
+      const r = width * 0.55
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r)
+      g.addColorStop(0, mixColor(colors.acc, colors.surface, 0.22))
+      g.addColorStop(1, mixColor(colors.acc, colors.surface, 0))
+      ctx.fillStyle = g
+      ctx.fillRect(cx - r, cy - r, r * 2, r * 2)
+    }
+    ctx.restore()
+  }
   ctx.textBaseline = 'alphabetic'
   for (const item of items) {
     if (item.kind === 'bar') {
       ctx.fillStyle = colors.acc
       roundRect(ctx, Math.min(item.x, item.x + item.w), item.y, Math.abs(item.w), item.h, item.h / 2)
       ctx.fill()
+    } else if (item.kind === 'badge') {
+      ctx.fillStyle = colors.acc
+      roundRect(ctx, item.x, item.y, item.w, item.h, item.h / 2)
+      ctx.fill()
+      ctx.fillStyle = colors.bg
+      ctx.font = `700 ${item.size}px ${family}`
+      ctx.textAlign = 'center'
+      ctx.direction = 'ltr'
+      ctx.fillText(item.text, item.x + item.w / 2, item.y + item.h / 2 + item.size * 0.36)
     } else if (item.kind === 'tile') {
       ctx.fillStyle = colors.tile || colors.bg
       roundRect(ctx, item.x, item.y, item.w, item.h, 28)
@@ -294,8 +384,9 @@ export function drawWorkoutCard(ctx, layout, colors, map = null, family = CARD_F
       for (const d of TROPHY) ctx.stroke(new Path2D(d))
       ctx.restore()
     } else {
-      ctx.direction = item.anchor === 'left' ? 'ltr' : rtl ? 'rtl' : 'ltr'
-      ctx.textAlign = item.anchor === 'left' ? 'left' : 'start'
+      // 'brand' is the footer wordmark: a text item the fixed formats pin to the bottom edge.
+      ctx.direction = item.anchor === 'left' || item.anchor === 'right' ? 'ltr' : rtl ? 'rtl' : 'ltr'
+      ctx.textAlign = item.anchor === 'left' ? 'left' : item.anchor === 'right' ? 'right' : 'start'
       ctx.fillStyle = colors[item.color] || colors.label
       ctx.font = `${item.weight} ${item.size}px ${family}`
       ctx.fillText(item.text, item.x, item.y)

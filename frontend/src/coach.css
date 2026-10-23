@@ -295,3 +295,148 @@
 .cmp-bar i{display:block;height:100%;border-radius:7px;background:var(--label-3);opacity:.55}
 .cmp-bar.you i{background:var(--acc);opacity:1}
 .cmp-bar span{position:absolute;left:8px;top:0;line-height:22px;font-size:11.5px;font-weight:600;color:var(--label);font-variant-numeric:tabular-nums;text-shadow:0 0 6px var(--bg)}
+
+/* ---------- the chat, second generation: threads, Markdown, a welcome ---------- */
+/* header: a frosted bar with a live status pill under the thread's title */
+.chat-hdr .chat-title{font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-pill{
+  display:inline-flex;align-items:center;gap:6px;margin-top:3px;padding:3px 9px 3px 7px;border-radius:99px;
+  font-size:11.5px;font-weight:500;color:var(--label-2);background:color-mix(in srgb,var(--surface) 70%,transparent);
+  border:1px solid var(--sep-op);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+.chat-pill .dot{width:7px;height:7px;border-radius:99px;background:var(--green);flex:none;box-shadow:0 0 6px var(--green)}
+.chat-pill .dot.live{background:var(--acc);box-shadow:0 0 8px var(--acc);animation:pulse 1.2s infinite ease-in-out}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* the welcome: a greeting, the week in four chips, and the starters by category */
+.chat-welcome{padding:18px 2px 6px;animation:msg-in var(--med) var(--ease)}
+.chat-greet{font-size:30px;font-weight:700;letter-spacing:-.028em;line-height:1.1;background:linear-gradient(100deg,var(--label),var(--acc));-webkit-background-clip:text;background-clip:text;color:transparent}
+.chat-greet-sub{font-size:15px;color:var(--label-2);line-height:1.45;margin:8px 0 16px}
+.snap{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -2px 18px;padding:0 2px}
+.snap::-webkit-scrollbar{display:none}
+.snap-chip{
+  flex:none;display:flex;flex-direction:column;gap:2px;padding:10px 14px;border-radius:16px;
+  background:var(--surface);border:1px solid var(--sep-op);min-width:96px
+}
+.snap-chip b{font-size:17px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.snap-chip span{font-size:11px;color:var(--label-2)}
+.snap-chip .icn{font-size:13px;color:var(--acc)}
+.starters-cats{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px}
+.starters-cats::-webkit-scrollbar{display:none}
+.starters-cat{
+  flex:none;display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:99px;font-size:13px;font-weight:500;
+  background:var(--surface);color:var(--label-2);border:1px solid var(--sep-op);transition:all var(--fast)
+}
+.starters-cat .icn{font-size:14px}
+.starters-cat.on{background:var(--acc-soft);color:var(--acc);border-color:var(--acc)}
+.starters{display:flex;flex-direction:column;gap:8px}
+.starter{
+  display:flex;align-items:center;gap:10px;text-align:left;padding:13px 15px;border-radius:16px;background:var(--surface);
+  color:var(--label);font-size:15px;letter-spacing:-.01em;border:1px solid var(--sep-op);transition:transform var(--fast),background var(--fast)
+}
+.starter:active{transform:scale(.985);background:var(--surface-2)}
+.starter .icn{color:var(--acc);flex:none;font-size:16px}
+.starter .grow{flex:1}
+.starter .starter-k{color:var(--label-3);font-size:12px;flex:none}
+
+/* Markdown inside a bubble */
+.bub.md-bub{white-space:normal}
+.md>*:first-child{margin-top:0}
+.md>*:last-child{margin-bottom:0}
+.md p{margin:0 0 8px;line-height:1.45}
+.md .md-h{margin:12px 0 6px;font-weight:700;letter-spacing:-.015em;line-height:1.2}
+.md h2.md-h{font-size:18px}
+.md h3.md-h{font-size:16px}
+.md h4.md-h{font-size:15px}
+.md ul,.md ol{margin:4px 0 8px;padding-left:20px}
+.md li{margin:3px 0;line-height:1.42}
+.md code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;background:var(--surface-2);padding:1px 5px;border-radius:5px}
+.md pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:var(--surface-2);padding:10px 12px;border-radius:10px;overflow-x:auto;white-space:pre}
+.md hr{border:0;height:var(--hair);background:var(--sep);margin:10px 0}
+.md .md-callout{
+  margin:8px 0;padding:10px 12px 10px 14px;border-radius:12px;background:var(--acc-soft);color:var(--label);
+  border-inline-start:3px solid var(--acc);font-size:14.5px;line-height:1.45
+}
+.md .md-table{overflow-x:auto;margin:8px 0;border-radius:10px;border:1px solid var(--sep-op)}
+.md table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
+.md th,.md td{padding:7px 10px;text-align:left;border-bottom:var(--hair) solid var(--sep);white-space:nowrap}
+.md th{font-weight:600;color:var(--label-2);background:var(--surface-2);font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+.md tr:last-child td{border-bottom:none}
+
+/* per-message actions: copy, regenerate */
+.msg-acts{display:flex;gap:4px;margin:4px 4px 0;opacity:.85}
+.msg-acts button{
+  display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:99px;font-size:12px;color:var(--label-2);
+  background:none;transition:background var(--fast),color var(--fast)
+}
+.msg-acts button .icn{font-size:13px}
+.msg-acts button:active{background:var(--surface-2);color:var(--label)}
+
+/* the floating input bar: a pill, the send button lit */
+.chat-v2 .composer-in{
+  background:var(--surface);border-radius:26px;padding:4px 4px 4px 6px;border:1px solid var(--sep-op);
+  box-shadow:0 8px 30px rgba(0,0,0,.18)
+}
+.chat-v2 .composer textarea{background:none;min-height:40px;padding:9px 12px}
+.chat-v2 .composer textarea:focus{box-shadow:none}
+.chat-v2 .composer-in.tall{border-radius:18px}
+.chat-v2 .send{width:40px;height:40px}
+.chat-v2 .send:not(:disabled){box-shadow:0 0 14px color-mix(in srgb,var(--acc) 55%,transparent)}
+.chat-v2 .composer-grow{top:-34px;left:8px}
+
+/* the thread drawer: slides in from the reading side over a dimmed page */
+.drawer-back{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.42);animation:fade var(--fast) both}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.drawer{
+  position:fixed;top:0;bottom:0;inset-inline-start:0;z-index:61;width:min(86vw,340px);display:flex;flex-direction:column;
+  background:var(--bg);padding:calc(var(--sat) + 12px) 12px calc(var(--sab) + 12px);box-shadow:8px 0 40px rgba(0,0,0,.35);
+  animation:slide-in var(--med) var(--ease) both
+}
+@keyframes slide-in{from{transform:translateX(-100%)}to{transform:none}}
+[dir=rtl] .drawer{animation-name:slide-in-rtl}
+@keyframes slide-in-rtl{from{transform:translateX(100%)}to{transform:none}}
+.drawer-top{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.drawer-top .searchf{flex:1}
+.drawer-new{
+  display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:14px;background:var(--acc);color:var(--on-acc);
+  font-size:15px;font-weight:600;margin-bottom:12px;transition:transform var(--fast)
+}
+.drawer-new:active{transform:scale(.98)}
+.drawer-list{flex:1;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
+.drawer-g{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--label-3);margin:12px 6px 6px}
+.drawer-row{display:flex;align-items:center;gap:2px;border-radius:12px;transition:background var(--fast)}
+.drawer-row.on{background:var(--surface)}
+.drawer-row>button:first-child{flex:1;min-width:0;text-align:left;padding:9px 10px;color:var(--label);background:none}
+.drawer-t{font-size:14.5px;font-weight:500;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drawer-s{font-size:12px;color:var(--label-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.drawer-row .iconbtn{flex:none;color:var(--label-3)}
+.drawer-empty{font-size:13.5px;color:var(--label-2);padding:14px 8px;line-height:1.45}
+
+/* the key modal on a phone that brought its own key but has none saved */
+.key-modal-back{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px;animation:fade var(--fast) both}
+.key-modal{width:100%;max-width:380px;background:var(--surface);border-radius:var(--r-xl);padding:20px 18px 16px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.key-modal h3{margin:0 0 6px;font-size:19px;letter-spacing:-.02em}
+.key-modal p{margin:0 0 14px;font-size:14px;color:var(--label-2);line-height:1.45}
+.key-modal .field{width:100%;margin-bottom:12px}
+.key-modal .btns{display:flex;flex-direction:column;gap:8px}
+
+/* the summary the Coach writes when a workout ends (sheets.jsx AutoDebrief) */
+.auto-deb{margin:4px 0 14px}
+.auto-deb-h{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--acc);margin-bottom:8px}
+.auto-deb-wait{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--label-2);line-height:1.4}
+.auto-deb-wait .typing{padding:10px 12px;min-width:52px;border-radius:14px}
+.auto-deb-card{text-align:start}
+
+/* the share card's preview in the two social shapes */
+.share-card.story img{aspect-ratio:9/16;max-height:60vh;width:auto;margin:0 auto;display:block}
+.share-card.square img{aspect-ratio:1/1}
+
+/* the recovery card (views/Stats.jsx) */
+.rec-sum{display:flex;flex-wrap:wrap;gap:6px 12px;margin:0 0 10px}
+.rec-pill{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--label-2)}
+.rec-pill i{width:8px;height:8px;border-radius:99px;background:var(--c);flex:none}
+.rec-pill b{color:var(--label);font-variant-numeric:tabular-nums}
+.rec-row .nm{font-size:14px}
+.rec-bar{width:110px;height:6px}
+.rec-bar i{transition:width var(--med) var(--ease)}
+.rec-more{display:block;background:none;color:var(--acc);font-size:13px;font-weight:500;padding:8px 0 2px}

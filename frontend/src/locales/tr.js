@@ -2414,4 +2414,6 @@ export default {
   // --- import with no account: workouts on this device ---
   'This device has 1 workout that is not in this backup. Replacing deletes it.': 'Bu cihazda bu yedekte olmayan 1 antrenman var. Değiştirmek onu siler.',
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': 'Bu cihazda bu yedekte olmayan {0} antrenman var. Değiştirmek onları siler.',
+  'Your nutrition log': 'Beslenme günlüğün',
+  'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'Kendi sözlerinle kaydettiğin öğünler ve sayıları, suyun ve kalori ile makro hedeflerin — bugün ve önceki hafta.',
 }

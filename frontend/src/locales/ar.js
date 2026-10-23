@@ -2469,4 +2469,6 @@ export default {
   // --- import with no account: workouts on this device ---
   'This device has 1 workout that is not in this backup. Replacing deletes it.': 'على هذا الجهاز تمرين واحد ليس في هذه النسخة الاحتياطية. الاستبدال يحذفه.',
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': 'على هذا الجهاز {0} تمارين ليست في هذه النسخة الاحتياطية. الاستبدال يحذفها.',
+  'Your nutrition log': 'سجل تغذيتك',
+  'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'الوجبات التي سجّلتها بكلماتك وأرقامها، وماؤك، وأهداف السعرات والمغذيات الكبرى — اليوم والأسبوع الذي قبله.',
 }

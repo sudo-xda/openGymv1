@@ -1,0 +1,108 @@
+/* The nutrition screen (views/Nutrition.jsx) and its Home card. On the app's tokens (index.css). */
+
+/* day switcher under the header */
+.nut-day{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:-6px 0 12px}
+.nut-day .nut-day-t{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.nut-day .nut-day-s{font-size:12px;color:var(--label-2);margin-top:1px}
+.nut-day>div{text-align:center;flex:1;min-width:0}
+
+/* the ring: calories left in the middle, the three macros beside it */
+.nut-hero{display:flex;align-items:center;gap:18px}
+.nut-ring{
+  --pct:0;--c:var(--acc);width:132px;height:132px;border-radius:99px;flex:none;position:relative;
+  background:conic-gradient(var(--c) calc(var(--pct) * 360deg),var(--surface-2) 0);
+  display:flex;flex-direction:column;align-items:center;justify-content:center
+}
+.nut-ring::before{content:"";position:absolute;inset:11px;border-radius:99px;background:var(--surface)}
+.nut-ring>*{position:relative}
+.nut-ring b{font-size:28px;font-weight:700;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.nut-ring span{font-size:11px;color:var(--label-2);margin-top:3px;text-align:center;line-height:1.2}
+.nut-ring.over{--c:var(--orange)}
+.nut-macros{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px}
+.nut-macro{display:grid;grid-template-columns:58px 1fr auto;align-items:center;gap:8px;font-size:13px}
+.nut-macro .nm{color:var(--label-2)}
+.nut-macro .tr{height:7px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.nut-macro .tr i{display:block;height:100%;border-radius:99px;background:var(--c,var(--acc));transition:width var(--med) var(--ease)}
+.nut-macro .tr i.over{background:var(--orange)}
+.nut-macro .v{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap;font-size:12.5px}
+.nut-macro .v small{font-weight:400;color:var(--label-3)}
+.nut-note{font-size:12.5px;color:var(--label-2);margin-top:10px;line-height:1.4}
+
+/* the three ways in: a row of big buttons */
+.nut-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0 4px}
+.nut-act{
+  display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px 10px;border-radius:16px;
+  background:var(--surface);color:var(--label);font-size:12.5px;font-weight:500;letter-spacing:-.006em;
+  border:1px solid var(--sep-op);transition:transform var(--fast),background var(--fast)
+}
+.nut-act:active{transform:scale(.97);background:var(--surface-2)}
+.nut-act .icn{font-size:22px;color:var(--acc)}
+.nut-act.ai .icn{color:var(--purple)}
+.nut-act:disabled{opacity:.45}
+
+/* water */
+.nut-water{display:flex;align-items:center;gap:10px}
+.nut-water .grow{flex:1;min-width:0}
+.nut-water .tr{height:7px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin-top:6px}
+.nut-water .tr i{display:block;height:100%;border-radius:99px;background:var(--blue);transition:width var(--med) var(--ease)}
+.nut-water .v{font-size:13px;font-variant-numeric:tabular-nums}
+.nut-water .v small{color:var(--label-3)}
+
+/* a meal in the day's list */
+.meal{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-top:var(--hair) solid var(--sep)}
+.meal:first-of-type{border-top:none}
+.meal .grow{flex:1;min-width:0}
+.meal .meal-t{font-size:15px;letter-spacing:-.01em;line-height:1.3;overflow-wrap:anywhere}
+.meal .meal-s{font-size:12.5px;color:var(--label-2);margin-top:3px;font-variant-numeric:tabular-nums}
+.meal .meal-cal{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.meal .meal-src{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--label-3);margin-inline-start:6px}
+.meal .meal-src .icn{font-size:11px}
+
+/* the week: seven bars against the target line */
+.nut-week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end;height:84px;margin-top:4px}
+.nut-week>button{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;background:none;padding:0}
+.nut-week .bar{width:100%;max-width:26px;border-radius:6px 6px 3px 3px;background:var(--surface-2);position:relative;overflow:hidden;min-height:4px}
+.nut-week .bar i{position:absolute;left:0;right:0;bottom:0;background:var(--acc);border-radius:inherit}
+.nut-week .bar i.over{background:var(--orange)}
+.nut-week .bar.sel{outline:2px solid var(--label);outline-offset:1px}
+.nut-week .d{font-size:10.5px;color:var(--label-3)}
+.nut-week .d.on{color:var(--label);font-weight:600}
+.nut-week-sum{display:flex;justify-content:space-between;font-size:12.5px;color:var(--label-2);margin-top:8px}
+
+/* sheets: the items of an estimate, a suggestion card, the quick-add list */
+.est-item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:9px 0;border-top:var(--hair) solid var(--sep);align-items:center}
+.est-item:first-of-type{border-top:none}
+.est-item .nm{font-size:15px;letter-spacing:-.01em}
+.est-item .qty{font-size:12.5px;color:var(--label-2);grid-column:1}
+.est-item .num{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;text-align:end;grid-row:1/3;align-self:center}
+.est-item .num small{display:block;font-weight:400;color:var(--label-2);font-size:11.5px}
+.est-item .adj{font-size:11px;color:var(--yellow)}
+.est-total{display:flex;justify-content:space-between;align-items:baseline;padding:12px 0 4px;border-top:var(--hair) solid var(--sep);margin-top:4px}
+.est-total b{font-size:22px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.est-total span{font-size:13px;color:var(--label-2);font-variant-numeric:tabular-nums}
+.sug{background:var(--surface);border-radius:16px;padding:14px 16px;border:1px solid var(--sep-op);margin-bottom:10px}
+.sug-t{font-size:17px;font-weight:600;letter-spacing:-.015em}
+.sug-d{font-size:13.5px;color:var(--label-2);line-height:1.45;margin:4px 0 6px}
+.sug-x{font-size:14px;line-height:1.4;margin-bottom:8px}
+.sug-n{display:flex;gap:10px;font-size:12.5px;color:var(--label-2);font-variant-numeric:tabular-nums;margin-bottom:10px}
+.sug-n b{color:var(--label)}
+.quick-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:var(--hair) solid var(--sep)}
+.quick-row:first-of-type{border-top:none}
+.quick-row .grow{flex:1;min-width:0}
+.quick-row .nm{font-size:15px;letter-spacing:-.01em}
+.quick-row .ss{font-size:12.5px;color:var(--label-2);margin-top:2px;font-variant-numeric:tabular-nums}
+.quick-row .stp{display:flex;align-items:center;gap:4px}
+.quick-row .stp b{min-width:28px;text-align:center;font-variant-numeric:tabular-nums;font-size:14px}
+.manual-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 12px}
+.manual-grid label{display:block}
+.manual-grid label>span{display:block;color:var(--label-2);font-size:13px;margin:0 2px 6px}
+.targets-hint{font-size:12.5px;color:var(--label-2);line-height:1.45;margin:6px 0 12px}
+
+/* the Home card */
+.nut-card-row{display:flex;align-items:center;gap:14px}
+.nut-card-row .nut-ring{width:76px;height:76px}
+.nut-card-row .nut-ring::before{inset:7px}
+.nut-card-row .nut-ring b{font-size:17px}
+.nut-card-row .nut-ring span{font-size:9.5px;margin-top:2px}
+.nut-card-row .nut-macros{gap:6px}
+.nut-card-row .nut-macro{grid-template-columns:46px 1fr auto;font-size:12px}

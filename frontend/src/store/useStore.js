@@ -94,6 +94,9 @@ export const DEF = {
   // Body measurements (#82): one check-in per day, values in cm whatever the weight unit
   // (lib/measurements.js); merged across devices like weigh-ins (lib/sync-merge.js).
   measurements: [], measurementEnabled: null, customMeasurements: [],
+  // The nutrition log (lib/nutrition.js): meals, water per day, daily targets; merged across
+  // devices like weigh-ins and day notes (lib/sync-merge.js). The Home card folds away in Settings.
+  meals: [], water: {}, nutritionTargets: null, showNutritionCard: true,
   queue: null,   // a planner's floating week (lib/queue.js) — via the API, or by this rotation feature (below)
   // The in-app rotation's reusable definition — { id, sequence, label } (lib/rotation.js). Never
   // a live queue: it only ever feeds `queue`, and `queue.rotationId` says the pass is managed here.

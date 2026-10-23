@@ -18,26 +18,31 @@ import { closeThenNav } from '../lib/nav.js'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { t, tn } from '../lib/i18n.js'
-import { fmtDate, fmtNum, DAYS, weekOrder, weekStartOf, isoOf } from '../lib/format.js'
-import { exLine } from '../lib/history.js'
+import { fmtDate, fmtNum, fmtVol, DAYS, weekOrder, weekStartOf, weekKey, todayISO, isoOf } from '../lib/format.js'
+import { exLine, workoutVolume, streakWeeks, lastBW } from '../lib/history.js'
 import { speedUnitOf } from '../lib/speed.js'
 import { DEMO } from '../lib/demo.js'
 import { MOBILE } from '../lib/mobile.js'
 import ChatInput from '../components/ChatInput.jsx'
+import Markdown from '../components/Markdown.jsx'
+import DebriefSummary, { Tile, kfmt } from '../components/DebriefSummary.jsx'
+import { plainText } from '../lib/markdown.js'
 import {
   coachAvailable, hasConsent, emptyCoach, appendChat, recordTiming, estimateMs, profileLines,
   markStale, applicable, applyChangeSet, applyCreatedPlan, recordDismissal, recordDebrief, logEntry,
   changeTitle, changeValues, exName, canRevert, revertLast
 } from '../lib/coach.js'
-import { insightsFor, sessionInsights } from '../lib/coach-insights.js'
-import { useCoachStatus, requestReview, requestDebrief, requestPlan, refinePlan, resolvePending, cohortStats, setCohortShare, jobErrorText, awaitedJob, settleAwaited, JOB_ERRORS, ensureAiConsent, isDeclined } from '../lib/coach-api.js'
+import { ensureThreads, newThread, switchThread, renameThread, deleteThread, offerTitle, pushMessageTo, syncChat, threadLines, groupThreads, searchThreads, TITLE_MAX } from '../lib/coach-threads.js'
+import { insightsFor } from '../lib/coach-insights.js'
+import { useCoachStatus, requestReview, requestDebrief, requestPlan, refinePlan, requestAsk, resolvePending, cohortStats, setCohortShare, jobErrorText, awaitedJob, settleAwaited, JOB_ERRORS, ensureAiConsent, isDeclined } from '../lib/coach-api.js'
+import { getApiKey, setApiKey } from '../lib/coach-secrets.js'
 import { AiConsentSection } from '../components/CoachConsentSheet.jsx'
 import { useCoachGate } from '../lib/use-coach-gate.js'
 import { confirmSheet } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
 import { glyphOf } from '../lib/glyphs.js'
 import LineChart from '../components/LineChart.jsx'
-import { Button, Check, Switch, Section, Row, SelectRow } from '../components/ui.jsx'
+import { Button, Check, Switch, Section, Row, SelectRow, SearchField, TextField } from '../components/ui.jsx'
 import '../coach.css'
 
 export default function CoachChat() {
@@ -55,8 +60,13 @@ export default function CoachChat() {
   // The message box opened into a tall editor (components/ChatInput.jsx); closed again on send.
   const [expanded, setExpanded] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [drawer, setDrawer] = useState(false)
+  // A phone that brought its own key and has none saved (a reinstall, a Keystore that forgot).
+  const [needKey, setNeedKey] = useState(false)
   const endRef = useRef(null)
   const prevJob = useRef(null)
+  const askedIn = useRef(null)     // the thread a question was asked in, whichever is open when it lands
+  const handled = useRef(null)     // the last chat reply already read into its thread
   const coachMode = coachLocal?.mode
 
   const gate = useCoachGate()
@@ -70,6 +80,16 @@ export default function CoachChat() {
     if (!ok) nav('/home', { replace: true })
     else if (!ready) nav('/coach/intake', { replace: true })
   }, [storeReady, gate.known, ok, ready])
+
+  // Threads exist from the first visit: an older profile's single chat becomes Thread #1
+  // (lib/coach-threads.js ensureThreads), and nothing it said is lost.
+  const threadCount = (S.coach?.threads || []).length
+  useEffect(() => {
+    if (ready && !threadCount) update(s => { ensureThreads(s.coach = s.coach || emptyCoach()) })
+  }, [ready, threadCount])
+  useEffect(() => {
+    if (MOBILE && coachMode === 'byok') getApiKey().then(k => setNeedKey(!k)).catch(() => {})
+  }, [coachMode])
 
   // A job that ends is either a proposal, "nothing to change", or a failure. The server tells
   // the client none of that directly — the job simply stops appearing — so the transition is
@@ -101,34 +121,48 @@ export default function CoachChat() {
     })
   }, [job, pending, loading, last?.id])
 
-  useEffect(() => { if (typeof endRef.current?.scrollIntoView === 'function') endRef.current.scrollIntoView({ block: 'end' }) }, [S.coach?.chat?.length, !!job, !!pending])
+  // A chat reply is not a proposal to decide on: it lands in the thread it was asked in, the
+  // Coach's title for a fresh thread is taken, and the pending slot is cleared at once.
+  useEffect(() => {
+    if (loading || job || pending?.kind !== 'chat' || handled.current === pending.id) return
+    handled.current = pending.id
+    const target = askedIn.current
+    update(s => {
+      const c = (s.coach = s.coach || emptyCoach())
+      ensureThreads(c)
+      const id = c.threads.some(x => x.id === target) ? target : c.activeThread
+      pushMessageTo(c, id, { role: 'coach', kind: 'text', md: true, text: pending.reply })
+      if (pending.title) offerTitle(c, id, pending.title)
+    })
+    resolvePending({ accepted: ['chat'] }).catch(() => {})
+    refresh()
+  }, [pending?.id, pending?.kind, job, loading])
+
+  const coach = S.coach || emptyCoach()
+  const threads = coach.threads || []
+  const thread = threads.find(th => th.id === coach.activeThread) || threads[threads.length - 1] || null
+  const messages = thread ? thread.messages : (coach.chat || [])
+  useEffect(() => { if (typeof endRef.current?.scrollIntoView === 'function') endRef.current.scrollIntoView({ block: 'end' }) }, [messages.length, thread?.id, !!job, !!pending])
 
   if (!ready) return null
-  const coach = S.coach || emptyCoach()
   const community = !!config?.coach?.community && !DEMO && !(MOBILE && coachMode === 'byok')
+  const fail = e => { if (!isDeclined(e)) toast(JOB_ERRORS[e.data?.code] || e.message || t('Could not ask the Coach')) }
 
-  const send = async () => {
-    const msg = text.trim()
+  /** A question, typed or tapped: a chat job, unless a plan is waiting to be refined. */
+  const askText = async msg => {
     if (!msg || busy) return
     setBusy(true)
     try {
-      // A message about a proposed plan refines it. With no plan at all — the first attempt
-      // failed, or nothing was ever built — the message asks for one; a review would only
-      // answer that there is no workout to look at, which is how people got stuck.
-      if (pending?.kind === 'create' || !(S.routines || []).length) await refinePlan(msg)
-      else await requestReview(msg)
+      if (pending?.kind === 'create') await refinePlan(msg)
+      else { askedIn.current = thread?.id || null; await requestAsk(msg, threadLines(thread)) }
       update(s => appendChat(s, { role: 'user', kind: 'text', text: msg }))
       setText('')
       setExpanded(false)
       refresh()
-    } catch (e) {
-      // A server that refuses the job says so in English, with its class beside it: the class
-      // picks the translated line. One with no line here ('shared') keeps the server's words.
-      // "Not now" on the data-sharing question is an answer, not a failure: the text stays put.
-      if (!isDeclined(e)) toast(JOB_ERRORS[e.data?.code] || e.message || t('Could not ask the Coach'))
-    }
+    } catch (e) { fail(e) }
     setBusy(false)
   }
+  const send = () => askText(text.trim())
 
   const ask = async (fn, line) => {
     setBusy(true)
@@ -136,7 +170,7 @@ export default function CoachChat() {
       await fn()
       update(s => appendChat(s, { role: 'user', kind: 'text', text: line }))
       refresh()
-    } catch (e) { if (!isDeclined(e)) toast(JOB_ERRORS[e.data?.code] || e.message || t('Could not ask the Coach')) }
+    } catch (e) { fail(e) }
     setBusy(false)
   }
   const askReview = () => ask(() => requestReview(''), t('Have a look at my training and tell me what you would change.'))
@@ -149,6 +183,31 @@ export default function CoachChat() {
     () => requestReview(t('Focus only on my routine “{0}”. Improve it: exercise choice, order, sets and reps, rep ranges, progression. Leave the other routines alone.', r.name)),
     t('Improve my routine “{0}”.', r.name))
 
+  // The same question again, in place of the answer it got (the ChatGPT "regenerate").
+  const regenerate = async m => {
+    if (busy || job) return
+    const i = messages.findIndex(x => x.id === m.id)
+    const prior = messages.slice(0, i)
+    const q = [...prior].reverse().find(x => x.role === 'user' && x.kind === 'text')
+    if (!q) return
+    setBusy(true)
+    try {
+      askedIn.current = thread?.id || null
+      await requestAsk(q.text, threadLines({ messages: prior.filter(x => x.id !== q.id) }))
+      update(s => {
+        const c = (s.coach = s.coach || emptyCoach())
+        const th = (c.threads || []).find(x => x.id === thread.id)
+        if (th) { th.messages = th.messages.filter(x => x.id !== m.id); syncChat(c) }
+      })
+      refresh()
+    } catch (e) { fail(e) }
+    setBusy(false)
+  }
+  const copy = async m => {
+    try { await navigator.clipboard.writeText(m.md ? plainText(m.text) : m.text); toast(t('Copied')) }
+    catch { toast(t('Could not copy')) }
+  }
+
   const pickRoutine = () => openSheet(close => <div className="chat-menu">
     <h3>{t('Improve which routine?')}</h3>
     <div className="sect-b">
@@ -160,11 +219,13 @@ export default function CoachChat() {
 
   const showHistory = () => openSheet(close => <HistorySheet S={S} close={close} openSheet={openSheet} />)
   const showCohort = () => openSheet(() => <CohortSheet S={S} update={update} toast={toast} />)
+  const startNew = () => { update(s => { newThread(s.coach = s.coach || emptyCoach()) }); setDrawer(false) }
 
   const idle = !job && !pending
   const menu = () => openSheet(close => <div className="chat-menu">
     <h3>{t('Coach')}</h3>
     <div className="sect-b">
+      <Row icon="chat" iconTint="var(--acc)" title={t('Chats')} subtitle={t('{0} conversations', threads.length)} accessory="chevron" onClick={() => { close(); setDrawer(true) }} />
       {idle && <Row icon="sparkles" iconTint="var(--acc)" title={t('Ask for a review')} subtitle={t('What would the Coach change after your last sessions?')} accessory="chevron" onClick={() => { close(); askReview() }} />}
       {idle && !!lastWorkout && <Row icon="checkCircle" iconTint="var(--green)" title={t('Review my last workout')} subtitle={t('What went well, what to watch, what to do next time')} accessory="chevron" onClick={() => { close(); askDebrief() }} />}
       {idle && !!(S.routines || []).length && <Row icon="wrench" iconTint="var(--orange)" title={t('Improve a routine')} subtitle={t('Pick one; the Coach works on just that')} accessory="chevron" onClick={() => { close(); pickRoutine() }} />}
@@ -172,6 +233,7 @@ export default function CoachChat() {
       <Row icon="history" iconTint="var(--blue)" title={t('Everything the Coach proposed')} subtitle={t('Plans, suggestions and debriefs, kept')} accessory="chevron" onClick={() => { close(); showHistory() }} />
       {idle && <Row icon="clipboard" iconTint="var(--indigo)" title={t('Start a new plan')} subtitle={t('A fresh plan from your answers; your workouts stay')} accessory="chevron" onClick={() => { close(); askNewPlan() }} />}
       <Row icon="pencil" iconTint="var(--indigo)" title={t('Edit my answers')} subtitle={t('Goal, days, equipment, limits')} accessory="chevron" onClick={() => closeThenNav(close, '/coach/intake?edit=1')} />
+      <AutoDebriefRow />
       <Row icon="clock" iconTint="var(--purple)" title={t('Automatic reviews')} subtitle={cadenceLabel(coach)} accessory="chevron" onClick={() => { close(); cadenceSheet(openSheet, update) }} />
       {!DEMO && <Row icon="shield" iconTint="var(--green)" title={t('AI data sharing')} subtitle={t('Who may see your training')} accessory="chevron" onClick={() => { close(); openSheet(() => <div className="chat-menu"><AiConsentSection /></div>) }} />}
       {canRevert(S) && <Row icon="reset" iconTint="var(--blue)" title={t('Undo the last Coach changes')} accessory="chevron" onClick={() => { close(); doRevert() }} />}
@@ -190,26 +252,31 @@ export default function CoachChat() {
     }
   })
 
-  const status = job ? t('thinking…') : pending ? t('has a suggestion for you') : t('here when you need it')
+  // What is answering, for the status pill: the provider and model this profile's jobs run on.
+  const provider = DEMO ? 'Demo'
+    : MOBILE && coachMode === 'byok' ? [providerName(coachLocal?.provider), coachLocal?.model].filter(Boolean).join(' · ')
+      : [config?.coach?.providerLabel || providerName(config?.coach?.provider), config?.coach?.model].filter(Boolean).join(' · ')
   const placeholder = pending?.kind === 'create'
     ? t('What should change?')
-    : job ? t('Coach is thinking…') : t('Message the Coach…')
+    : job ? t('Coach is thinking…') : t('Ask your Coach…')
 
-  return <div className="narrow chat">
+  return <div className="narrow chat chat-v2">
     <div className="chat-hdr">
       <button className="iconbtn" data-back="/plan" onClick={() => nav('/plan')} aria-label={t('Back')}><Icon name="chevronLeft" /></button>
+      <button className="iconbtn" onClick={() => setDrawer(true)} aria-label={t('Chats')}><Icon name="list" /></button>
       <div className="chat-av"><Icon name="sparkles" /></div>
       <div className="grow">
-        <h1>{t('Coach')}</h1>
-        <div className={'chat-st' + (job ? ' live' : '')}>{status}</div>
+        <h1 className="chat-title">{thread?.title || t('Coach')}</h1>
+        <div className="chat-pill" title={provider}><i className={'dot' + (job ? ' live' : '')} />{provider}{provider ? ' · ' : ''}{job ? t('thinking…') : t('Live gym sync')}</div>
       </div>
+      <button className="iconbtn" onClick={startNew} aria-label={t('New chat')}><Icon name="plusCircle" /></button>
       <button className="iconbtn" onClick={menu} aria-label={t('More')}><Icon name="more" /></button>
     </div>
 
     <div className="msgs">
-      <Bubble role="coach">{t('Hi, I’m your Coach. I build your plan from your answers and adjust it from what you actually log. Nothing changes until you say so.')}</Bubble>
+      {!messages.length && !job && !pending && <Welcome S={S} user={user} onAsk={askText} jobs={{ askReview, askDebrief, askNewPlan, lastWorkout }} />}
 
-      {(coach.chat || []).map(m => <Message key={m.id} m={m} S={S} profile={coach.profile} openSheet={openSheet} />)}
+      {messages.map(m => <Message key={m.id} m={m} S={S} profile={coach.profile} openSheet={openSheet} onCopy={copy} onRegenerate={m.md && idle && !busy ? regenerate : null} />)}
 
       {job && <Typing S={S} kind={job.kind} coachLocal={coachLocal} config={config} />}
 
@@ -217,13 +284,15 @@ export default function CoachChat() {
         ? <PlanCard p={pending} S={S} update={update} toast={toast} nav={nav} refresh={refresh} />
         : pending.kind === 'debrief'
           ? <DebriefCard p={pending} S={S} update={update} toast={toast} refresh={refresh} />
-          : <ReviewCard p={pending} S={S} update={update} toast={toast} refresh={refresh} />)}
+          : pending.kind === 'review'
+            ? <ReviewCard p={pending} S={S} update={update} toast={toast} refresh={refresh} />
+            : null)}
 
       <div ref={endRef} />
     </div>
 
     <div className="composer">
-      {idle && !busy && <div className="chips-row">
+      {idle && !busy && !!messages.length && <div className="chips-row">
         <button className="qchip" onClick={askReview}><Icon name="sparkles" />{t('Review my training')}</button>
         {!!lastWorkout && <button className="qchip" onClick={askDebrief}><Icon name="checkCircle" />{t('Last workout')}</button>}
         {!!(S.routines || []).length && <button className="qchip" onClick={pickRoutine}><Icon name="wrench" />{t('Improve a routine')}</button>}
@@ -236,20 +305,180 @@ export default function CoachChat() {
       </div>
       {cap?.limit > 0 && <div className="composer-cap">{t('{0} of {1} Coach runs used today', cap.used, cap.limit)}</div>}
     </div>
+
+    {drawer && <ThreadDrawer coach={coach} update={update} close={() => setDrawer(false)} openSheet={openSheet} toast={toast} />}
+    {needKey && <KeyModal provider={coachLocal?.provider} close={() => setNeedKey(false)} toast={toast} nav={nav} />}
   </div>
+}
+
+const PROVIDER_NAMES = { anthropic: 'Anthropic', openai: 'OpenAI', gemini: 'Google Gemini', compatible: 'OpenAI-compatible', claude: 'Claude', codex: 'Codex', fixture: 'Fixture', demo: 'Demo' }
+const providerName = p => (p ? PROVIDER_NAMES[p] || p : '')
+
+/* ---------------------------------- the welcome ---------------------------------- */
+
+/**
+ * An empty thread: a greeting, this week in four numbers, and the questions people ask, in
+ * four groups. A starter that is a job (a review, a plan, a debrief) runs it; the rest are sent
+ * as a question, the way a typed one is.
+ */
+function Welcome({ S, user, onAsk, jobs }) {
+  const [cat, setCat] = useState('workouts')
+  const name = user?.name || t('athlete')
+  const ws = weekStartOf(S)
+  const wk = weekKey(todayISO(), ws)
+  const week = (S.workouts || []).filter(w => w?.d && weekKey(w.d, ws) === wk)
+  const volume = week.reduce((n, w) => n + (Number.isFinite(w.vol) ? w.vol : workoutVolume(w)), 0)
+  const streak = streakWeeks(S)
+  const bw = lastBW(S)
+  const trained = {}
+  ;(S.workouts || []).forEach(w => (w.entries || []).forEach(en => { trained[en.id] = (trained[en.id] || 0) + 1 }))
+  const topId = Object.entries(trained).sort((a, b) => b[1] - a[1])[0]?.[0]
+  const topName = topId ? exName(topId) : null
+
+  const cats = [
+    { key: 'workouts', icon: 'dumbbell', label: t('Workouts'), items: [
+      { label: t('What should I train today?') },
+      { label: t('Review my training'), run: jobs.askReview, kind: t('review') },
+      { label: t('Build me a fresh plan'), run: jobs.askNewPlan, kind: t('plan') },
+    ] },
+    { key: 'nutrition', icon: 'heart', label: t('Nutrition'), items: [
+      { label: t('How much protein should I eat for my goal?') },
+      { label: t('What should I eat before and after training?') },
+      { label: t('Am I eating enough to gain, or too much to lose?') },
+    ] },
+    { key: 'progress', icon: 'chartLine', label: t('Progress'), items: [
+      ...(topName ? [{ label: t('How is my {0} progressing?', topName) }] : []),
+      { label: t('Where am I stalling, and why?') },
+      ...(jobs.lastWorkout ? [{ label: t('Debrief my last workout'), run: jobs.askDebrief, kind: t('debrief') }] : []),
+    ] },
+    { key: 'technique', icon: 'lightbulb', label: t('Technique'), items: [
+      { label: t('Give me the main cues for a better squat') },
+      { label: t('Why does my lower back round on deadlifts?') },
+      { label: t('How do I warm up for heavy pressing?') },
+    ] },
+  ]
+  const cur = cats.find(c => c.key === cat) || cats[0]
+  return <div className="chat-welcome">
+    <div className="chat-greet">{t('Hi {0}', name)}</div>
+    <div className="chat-greet-sub">{t('Ask me anything about your training. I read your whole log before I answer, and nothing in your plan changes unless you say so.')}</div>
+    <div className="snap">
+      <div className="snap-chip"><Icon name="barbell" /><b>{volume ? fmtVol(volume, S.unit) : '–'}</b><span>{t('Volume this week')}</span></div>
+      <div className="snap-chip"><Icon name="calendar" /><b>{week.length}</b><span>{t('Sessions this week')}</span></div>
+      <div className="snap-chip"><Icon name="flame" /><b>{streak}</b><span>{t('Week streak')}</span></div>
+      {bw && <div className="snap-chip"><Icon name="scale" /><b>{fmtNum(bw.w)} {S.unit}</b><span>{t('Body weight')}</span></div>}
+    </div>
+    <div className="starters-cats">
+      {cats.map(c => <button key={c.key} className={'starters-cat' + (c.key === cat ? ' on' : '')} onClick={() => setCat(c.key)}><Icon name={c.icon} />{c.label}</button>)}
+    </div>
+    <div className="starters">
+      {cur.items.map((it, i) => <button key={i} className="starter" onClick={() => (it.run ? it.run() : onAsk(it.label))}>
+        <Icon name={it.run ? 'sparkles' : 'chat'} /><span className="grow">{it.label}</span>{it.kind && <span className="starter-k">{it.kind}</span>}
+      </button>)}
+    </div>
+  </div>
+}
+
+/* ---------------------------------- the drawer ---------------------------------- */
+
+/** Every conversation, newest first under Today / Yesterday / Previous 7 days / Older. */
+function ThreadDrawer({ coach, update, close, openSheet, toast }) {
+  const [q, setQ] = useState('')
+  const threads = coach.threads || []
+  const groups = groupThreads(searchThreads(threads, q))
+  const edit = c => update(s => { c(s.coach = s.coach || emptyCoach()) })
+  const open = id => { edit(c => switchThread(c, id)); close() }
+  const more = th => openSheet(c2 => <ThreadMenu th={th} close={c2} edit={edit} toast={toast} />)
+  const snippet = th => { const m = [...(th.messages || [])].reverse().find(x => typeof x.text === 'string' && x.text.trim()); return m ? (m.md ? plainText(m.text) : m.text).replace(/\s+/g, ' ').slice(0, 80) : t('Nothing said yet') }
+  return <>
+    <div className="drawer-back" onClick={close} />
+    <aside className="drawer" aria-label={t('Chats')}>
+      <div className="drawer-top">
+        <SearchField value={q} onChange={e => setQ(e.target.value)} onClear={() => setQ('')} placeholder={t('Search chats')} />
+        <button className="iconbtn" onClick={close} aria-label={t('Close')}><Icon name="xmark" /></button>
+      </div>
+      <button className="drawer-new" onClick={() => { edit(c => newThread(c)); close() }}><Icon name="plus" />{t('New chat')}</button>
+      <div className="drawer-list">
+        {!groups.length && <div className="drawer-empty">{q ? t('No chat matches that.') : t('Your conversations with the Coach will be listed here.')}</div>}
+        {groups.map(g => <div key={g.key}>
+          <div className="drawer-g">{g.label}</div>
+          {g.threads.map(th => <div key={th.id} className={'drawer-row' + (th.id === coach.activeThread ? ' on' : '')}>
+            <button onClick={() => open(th.id)}>
+              <div className="drawer-t">{th.title}</div>
+              <div className="drawer-s">{snippet(th)}</div>
+            </button>
+            <button className="iconbtn" onClick={() => more(th)} aria-label={t('More')}><Icon name="more" /></button>
+          </div>)}
+        </div>)}
+      </div>
+    </aside>
+  </>
+}
+function ThreadMenu({ th, close, edit, toast }) {
+  const [name, setName] = useState(th.title || '')
+  const rename = () => { edit(c => renameThread(c, th.id, name)); close(); toast(t('Renamed')) }
+  const remove = () => confirmSheet({
+    title: t('Delete this chat?'), message: t('Its messages are removed from this profile. Plans and debriefs the Coach made stay in its history.'),
+    confirmText: t('Delete'), danger: true,
+    onConfirm: () => { edit(c => deleteThread(c, th.id)); close(); toast(t('Chat deleted')) }
+  })
+  return <div className="chat-menu">
+    <h3>{t('Rename chat')}</h3>
+    <TextField value={name} maxLength={TITLE_MAX} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') rename() }} style={{ width: '100%', marginBottom: 10 }} />
+    <Button variant="primary" icon="check" disabled={!name.trim()} onClick={rename}>{t('Save')}</Button>
+    <div style={{ height: 8 }} />
+    <Button variant="danger" icon="trash" onClick={remove}>{t('Delete chat')}</Button>
+    <div style={{ height: 10 }} />
+  </div>
+}
+
+/* ---------------------------------- the key ---------------------------------- */
+
+/** Mobile, own key, none saved: paste it here rather than being sent to Settings first. */
+function KeyModal({ provider, close, toast, nav }) {
+  const [key, setKey] = useState('')
+  const [busy, setBusy] = useState(false)
+  const save = async () => {
+    if (!key.trim()) return
+    setBusy(true)
+    try { await setApiKey(key.trim()); toast(t('Key saved on this phone')); close() }
+    catch { toast(t('Could not save the key')) }
+    setBusy(false)
+  }
+  return <div className="key-modal-back">
+    <div className="key-modal" role="dialog" aria-modal="true">
+      <h3>{t('Add your API key')}</h3>
+      <p>{t('This phone runs the Coach with your own {0} key, and none is saved yet. It stays in the phone’s secure storage and never in your data.', providerName(provider) || t('AI provider'))}</p>
+      <TextField type="password" value={key} onChange={e => setKey(e.target.value)} placeholder={t('Paste the key')} autoComplete="off" autoCapitalize="none" spellCheck={false} />
+      <div className="btns">
+        <Button variant="primary" icon="key" disabled={!key.trim() || busy} onClick={save}>{t('Save and use the Coach')}</Button>
+        <Button onClick={() => nav('/coach/setup')}>{t('Open AI Coach settings')}</Button>
+        <Button variant="ghost" className="dim" onClick={close}>{t('Later')}</Button>
+      </div>
+    </div>
+  </div>
+}
+
+/** The switch for the summary the Coach writes when a workout ends (sheets.jsx AutoDebrief). */
+function AutoDebriefRow() {
+  const on = useStore(s => s.S.coach?.autoDebrief !== false)
+  const update = useStore(s => s.update)
+  return <Row icon="checkCircle" iconTint="var(--green)" title={t('Auto workout summary')} subtitle={t('A debrief of every workout, written as you finish it')}>
+    <Switch checked={on} onChange={v => update(s => { (s.coach = s.coach || emptyCoach()).autoDebrief = v })} />
+  </Row>
 }
 
 /* ---------------------------------- bubbles ---------------------------------- */
 
-function Bubble({ role, kind, at, children }) {
-  const cls = kind === 'error' ? ' err' : ''
+function Bubble({ role, kind, at, md, children, actions }) {
+  const cls = (kind === 'error' ? ' err' : '') + (md ? ' md-bub' : '')
   return <div className={'msg ' + role}>
     <div className={'bub' + cls}>{children}</div>
+    {actions}
     {at && <div className="msg-t">{stamp(at)}</div>}
   </div>
 }
 
-function Message({ m, S, profile, openSheet }) {
+function Message({ m, S, profile, openSheet, onCopy, onRegenerate }) {
   if (m.kind === 'intake') {
     const lines = profileLines(profile)
     return <Bubble role="user" at={m.at}>
@@ -266,7 +495,13 @@ function Message({ m, S, profile, openSheet }) {
     </div>
   }
   if (m.kind === 'reverted' || m.kind === 'nochange' || m.kind === 'error' || m.kind === 'text') {
-    return <Bubble role={m.role} kind={m.kind} at={m.at}>{m.text}</Bubble>
+    const actions = m.role === 'coach' && (m.kind === 'text' || m.kind === 'nochange') && onCopy
+      ? <div className="msg-acts">
+        <button onClick={() => onCopy(m)}><Icon name="copy" />{t('Copy')}</button>
+        {onRegenerate && <button onClick={() => onRegenerate(m)}><Icon name="repeat" />{t('Regenerate')}</button>}
+      </div>
+      : null
+    return <Bubble role={m.role} kind={m.kind} at={m.at} md={!!m.md} actions={actions}>{m.md ? <Markdown text={m.text} /> : m.text}</Bubble>
   }
   return null
 }
@@ -292,7 +527,7 @@ function Typing({ S, kind, coachLocal, config }) {
     // local model rather than something wrong; the next line already warns it takes longer.
     eta = local ? '' : t('This usually takes a minute or two.')
   }
-  const doing = kind === 'create' ? t('Building your plan…') : kind === 'debrief' ? t('Looking at that session…') : t('Reading your training…')
+  const doing = kind === 'create' ? t('Building your plan…') : kind === 'debrief' ? t('Looking at that session…') : kind === 'chat' ? t('Reading your log for an answer…') : t('Reading your training…')
   return <div className="msg coach">
     <div className="bub typing"><i /><i /><i /></div>
     <div className="typing-eta">
@@ -519,52 +754,8 @@ function Insights({ S, window: win, compact }) {
     </div>}
   </div>
 }
-const Tile = ({ v, l }) => <div className="ins-tile"><div className="ins-tile-v">{v}</div><div className="ins-tile-l">{l}</div></div>
-const kfmt = n => (n >= 10000 ? Math.round(n / 1000) + 'k' : fmtNum(n))
 
 /* ---------------------------------- a debrief ---------------------------------- */
-
-function DebriefBody({ p, S }) {
-  const w = p.workout || {}
-  const live = useMemo(() => sessionInsights(S, (S.workouts || []).find(x => x.id === w.id) || null), [S, w.id])
-  const score = Number.isFinite(p.score) ? Math.max(1, Math.min(10, p.score)) : null
-  return <>
-    {score != null && <div className="deb-score">
-      <div className="deb-ring" style={{ '--pct': score / 10 }}><span>{score}</span><small>/10</small></div>
-      <div className="deb-score-t"><b>{scoreWord(score)}</b><span>{w.name || t('Workout')}{w.d ? ' · ' + fmtDate(w.d) : ''}</span></div>
-    </div>}
-    {live && <div className="ins">
-      <div className="ins-tiles">
-        <Tile v={live.now.sets} l={t('Sets')} />
-        <Tile v={live.now.minutes != null ? live.now.minutes : '–'} l={t('Minutes')} />
-        <Tile v={live.now.volume ? kfmt(live.now.volume) : '–'} l={t('Volume ({0})', S.unit)} />
-        <Tile v={live.now.prs || '–'} l={t('PRs')} />
-      </div>
-      {live.then && <div className="ins-cmp">
-        {t('vs. last {0} on {1}:', w.name || t('session'), fmtDate(live.prevDate))}{' '}
-        <Delta v={live.now.volume - live.then.volume} unit={S.unit} label={t('volume')} />
-        {live.now.minutes != null && live.then.minutes != null && <Delta v={live.now.minutes - live.then.minutes} unit="min" label={t('time')} />}
-      </div>}
-      {!!live.lifts.length && <div className="ins-block">
-        <div className="ins-h"><span>{t('Best set, estimated 1RM')}</span></div>
-        {live.lifts.slice(0, 6).map(x => <div key={x.id} className="ins-row">
-          <span className="ins-row-n">{x.name} <span className="dim">{fmtNum(x.w)}×{x.r}</span></span>
-          <span className="ins-row-v"><span className="tag acc">{fmtNum(x.est)}</span></span>
-          {x.prev != null && <span className={'ins-delta' + (x.est > x.prev ? ' up' : x.est < x.prev ? ' down' : '')}>{x.est > x.prev ? '▲' : x.est < x.prev ? '▼' : '•'} {fmtNum(Math.abs(x.est - x.prev))}</span>}
-        </div>)}
-      </div>}
-    </div>}
-    <DebriefList icon="checkCircle" tint="var(--green)" title={t('What went well')} items={p.highlights} />
-    <DebriefList icon="warning" tint="var(--yellow)" title={t('Worth watching')} items={p.watch} />
-    <DebriefList icon="arrowUp" tint="var(--acc)" title={t('Next time')} items={p.nextTime} />
-  </>
-}
-const Delta = ({ v, unit, label }) => <span className={'ins-delta' + (v > 0 ? ' up' : v < 0 ? ' down' : '')}>{v > 0 ? '+' : ''}{fmtNum(v)} {unit} {label}</span>
-const DebriefList = ({ icon, tint, title, items }) => !!items?.length && <div className="deb-list">
-  <div className="deb-list-h" style={{ color: tint }}><Icon name={icon} />{title}</div>
-  {items.map((x, i) => <div key={i} className="deb-item">{x}</div>)}
-</div>
-const scoreWord = s => s >= 9 ? t('Excellent session') : s >= 7 ? t('Good session') : s >= 5 ? t('Solid session') : t('Tough session')
 
 function DebriefCard({ p, S, update, toast, refresh }) {
   const done = () => {
@@ -580,7 +771,7 @@ function DebriefCard({ p, S, update, toast, refresh }) {
         <h2 className="pcard-h">{p.workout?.name || t('Your last workout')}</h2>
         {!!p.summary && <p className="pcard-sum">{p.summary}</p>}
       </div>
-      <DebriefBody p={p} S={S} />
+      <DebriefSummary p={p} S={S} />
       <div className="pcard-ft">
         <Button variant="primary" icon="check" onClick={done}>{t('Got it')}</Button>
       </div>
@@ -656,7 +847,7 @@ function ProposalDetail({ entry, S }) {
     </>}
     {kind === 'create' && !b && <p className="pcard-sum">{t('This plan was imported before the app kept proposals; only its summary is left.')}</p>}
 
-    {kind === 'debrief' && <DebriefBody p={entry} S={S} />}
+    {kind === 'debrief' && <DebriefSummary p={entry} S={S} />}
     {kind === 'revert' && <p className="pcard-sum">{t('Reverted the last Coach changes.')}</p>}
     <div style={{ height: 10 }} />
   </div>

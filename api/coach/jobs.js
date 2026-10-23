@@ -239,12 +239,20 @@ export function enqueue(uid, opts) {
     id: crypto.randomBytes(8).toString('hex'),
     uid,
     forgetSeq: forgetSeq.get(uid) || 0,
-    kind: opts.kind,                                  // 'create' | 'review' | 'debrief'
+    kind: opts.kind,                                  // 'create' | 'review' | 'debrief' | 'chat'
     trigger: opts.trigger || 'manual',                // 'manual' | 'scheduled'
     workoutId: opts.workoutId ? String(opts.workoutId).slice(0, 40) : null,
     intake: opts.intake || null,
     note: clampMessage(opts.note),
     refine: clampMessage(opts.refine),
+    // A chat: the question, and the thread it continues as the app shows it. Both are the
+    // user's own words; the payload builder bounds the lines once more.
+    question: opts.kind === 'chat' ? clampMessage(opts.question) : null,
+    conversation: opts.kind === 'chat' && Array.isArray(opts.conversation) ? opts.conversation.slice(-payloadLib.THREAD_LINES) : null,
+    // A meal: the words, or a request for suggestions against today's gap.
+    meal: opts.kind === 'meal' ? (opts.meal && opts.meal.suggest ? { suggest: true } : { text: String((opts.meal && opts.meal.text) || '').slice(0, payloadLib.MEAL_WORDS_MAX) }) : null,
+    // A meal: the words, or a request for suggestions against today's gap.
+    meal: opts.kind === 'meal' ? (opts.meal && opts.meal.suggest ? { suggest: true } : { text: String(opts.meal && opts.meal.text || '').slice(0, payloadLib.MEAL_WORDS_MAX) }) : null,
     lang: payloadLib.langTag(opts.lang),              // the language the app was showing (#303)
     state: 'queued',
     startedAt: Date.now()
@@ -344,12 +352,15 @@ async function execute(job) {
     refine: job.refine,
     previous: pendingCreate?.bundle || null,
     workoutId: job.workoutId,
+    question: job.question,
+    conversation: job.conversation,
+    meal: job.meal,
     // The app says which language it is in. A scheduled review has no app behind it: a profile
     // that never picked a language then gets the instance's DEFAULT_LANG, like its screens do.
     lang: job.lang || (S.langAuto === true ? payloadLib.langTag(process.env.DEFAULT_LANG) : null),
     // The room's medians ride along on a review or a debrief when the admin allows it and
     // this person opted in; null otherwise, and the payload then carries no `cohort` at all.
-    cohort: (job.kind === 'review' || job.kind === 'debrief') ? cohortForPayload(job.uid) : null
+    cohort: (job.kind === 'review' || job.kind === 'debrief' || job.kind === 'chat') ? cohortForPayload(job.uid) : null
   });
   // The payload is paid for with the instance's key, and it is built from state the client
   // wrote. The builder bounds each field; a payload that is still bigger than any real training

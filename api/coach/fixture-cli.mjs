@@ -119,6 +119,47 @@ if (kind === 'debrief') {
   });
 }
 
+// chat: the question echoed back with the numbers it was given, so a test can check that the
+// thread, the window and the career summary all arrived.
+if (kind === 'chat') {
+  const c = P.career || {};
+  const lines = (P.conversation || []).length;
+  out({
+    coach_contract: 1,
+    reply: `## About "${P.question || ''}"\n\nYou have logged **${c.sessions ?? 0} sessions** since ${c.since || '?'}, about ${c.sessionsPerWeekRecent ?? 0} a week lately.\n\n| Lift | First | Best |\n|---|---|---|\n` +
+      (c.bests || []).slice(0, 3).map(b => `| ${b.name} | ${b.first?.top || '-'} | ${b.best?.top || '-'} |`).join('\n') +
+      `\n\n- The thread had ${lines} earlier lines.\n- ${(P.window?.workouts || []).length} recent sessions were read.`,
+    title: 'Fixture answer'
+  });
+}
+
+// meal: two eggs and toast from the anchor table, the toast's calories deliberately off so a
+// test can see the server's cross-check correct them; a suggestion answers the gap it was given.
+if (kind === 'meal') {
+  out({
+    coach_contract: 1,
+    items: [
+      { name: 'Egg, large', qty: '2 large (100 g)', cal: 144, protein: 12.6, carbs: 0.8, fat: 9.6 },
+      { name: 'White bread', qty: '1 slice (30 g)', cal: 120, protein: 2.7, carbs: 14.8, fat: 1.0 }
+    ],
+    note: (P.meal?.text || '').length ? '' : 'nothing to read'
+  });
+}
+if (kind === 'mealsuggest') {
+  const rem = P.mealGap?.remaining;
+  const light = !!rem && rem.cal <= 0;
+  out({
+    coach_contract: 1,
+    meals: [1, 2, 3].map(i => ({
+      title: (light ? 'Greek yogurt cup ' : 'Chicken and rice bowl ') + i,
+      desc: light ? 'Protein without the calories.' : 'Fills the protein gap with slow carbs.',
+      text: light ? '170 g plain nonfat Greek yogurt' : '150 g cooked chicken breast with 1 cup cooked white rice',
+      cal: light ? 100 : 454, protein: light ? 17 : 50.8, carbs: light ? 6 : 44.5, fat: light ? 0.7 : 5.8
+    })),
+    note: light ? 'Today\'s calories are already met.' : ''
+  });
+}
+
 // review
 const routine = (P.plan?.routines || [])[0];
 const first = routine?.ex?.[0];

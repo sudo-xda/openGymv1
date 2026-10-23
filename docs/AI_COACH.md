@@ -193,6 +193,63 @@ score out of ten, what went well, what to watch, and what to do next time, each 
 session's own numbers. A debrief cannot carry a change; an answer that tries is refused by the
 validator rather than trimmed. The card is kept in the Coach's history like everything else.
 
+### Asking a question
+
+Anything typed into the chat that is not a reply to a plan being revised is a **question**, and
+the Coach answers it in prose: a `chat` job (`POST /api/coach/ask`). It reads the same things a
+review reads — the recent sessions (the last one set by set), the stall picture, the body-weight
+series — plus `career`, a bounded summary of the whole log: sessions, weeks, sessions per week
+lately, total PRs, and for a dozen lifts where each started, its best ever and its best estimated
+one-rep max. The answer is Markdown (headings, lists, tables, callouts) rendered by the app's own
+reader, never as HTML, and it is not a proposal: nothing in it can be applied. If the question
+amounts to "change my plan", the Coach says what it would change and points at a review.
+
+Questions live in **threads**. The drawer (the list button in the chat's header) shows every
+conversation under Today, Yesterday, Previous 7 days and Older, with search; a chat can be
+renamed or deleted, and a new one started from the header. The thread the question was asked in
+is what the job gets as `conversation` (the last twelve lines, each cut to 400 characters), so
+"shorter, like you said before" has something to point at. A profile that had the single chat of
+earlier versions finds it as Thread #1. Threads are part of the synced state, bounded (thirty
+threads, sixty lines each) like the rest of the Coach namespace.
+
+### A summary of every workout, automatically
+
+With the Coach set up and consented to, finishing a workout starts a debrief of it by itself,
+and the answer appears under the finish summary: the score, what went well, what to watch, what
+to do next time. It is the same `debrief` job as asking by hand — kept in the Coach's history,
+written into the chat — started from the finish screen. The debrief payload now also carries
+`earlier` (the same routine further back, one line per exercise) and the `career` summary
+above, so a session is read against the lifter's own history rather than only last week.
+
+The switch is **Auto workout summary** in the chat's menu, on by default. A job that cannot
+start — the Coach busy, the day's cap reached, the data-sharing question never answered — is
+skipped quietly: nobody is asked anything in the middle of finishing a workout. The summary
+counts as a run against the daily cap like any other job.
+
+### Meals, and what to eat
+
+The nutrition screen (Home → Nutrition) keeps a food log: meals per day with calories and
+macros, water, and daily targets the app can suggest from the body weight and goal. Three ways
+to log a meal, two of them without any model: a quick-add list of about forty common foods at
+USDA serving sizes (typing "2 eggs and toast" into its search reads the words against the same
+list), or the numbers typed in. The third is the Coach: **Describe** sends the meal in words as
+a `meal` job (`POST /api/coach/meal`), and **What should I eat next?** sends `{ suggest: true }`
+for three meals that fit what is left of the day.
+
+What makes the AI side trustworthy is not the prompt. The prompt anchors the model to the same
+USDA table the quick-add list uses (`api/coach/core/foods.js`, quoted into the prompt so the
+two can never disagree), but the server then recomputes every item: calories further than 8%
+from `protein × 4 + carbs × 4 + fat × 9` are replaced by the arithmetic and marked as corrected,
+totals are added up from the items and never taken from the model's own figures, and every
+number is bounded. The app logs the result only when the person taps **Log this meal**; until
+then it is a pending proposal like any other, and cancelling clears it.
+
+With a food log present, a debrief and a chat also receive `nutrition` — the day's totals
+against the targets, one line per meal, and the week's averages — so the workout summary can
+say whether the day's calories and protein supported the session. That is a new data category
+on the consent screen, which is why the consent version moved and everyone is asked once more.
+A profile that never logged a meal sends nothing of the kind.
+
 ### Comparing with others on the instance
 
 Off unless the admin turns it on (**Settings → Account → Admin dashboard**, the **AI Coach** card →

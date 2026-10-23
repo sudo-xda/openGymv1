@@ -85,6 +85,14 @@ const _requestPlan = async intake => DEMO ? (await demo()).demoPlan(S(), intake)
 export const requestPlan = (...a) => asked(_requestPlan)(...a).then(track)
 const _refinePlan = async text => DEMO ? (await demo()).demoRefine(S()) : LOCAL() ? (await local()).localRefine(S(), text) : api('/api/coach/plan', { method: 'POST', body: JSON.stringify({ refine: text, lang: getLang() }) })
 export const refinePlan = (...a) => asked(_refinePlan)(...a).then(track)
+// A question, answered in prose into the thread the app is showing (lib/coach-threads.js
+// threadLines builds `conversation`). Nothing to apply: the chat reads the reply and resolves it.
+const _requestAsk = async (question, conversation) => DEMO ? (await demo()).demoAsk(S(), question) : LOCAL() ? (await local()).localAsk(S(), question, conversation) : api('/api/coach/ask', { method: 'POST', body: JSON.stringify({ question, conversation: conversation || [], lang: getLang() }) })
+export const requestAsk = (...a) => asked(_requestAsk)(...a).then(track)
+// A meal in words → items with their numbers; `{ suggest: true }` → three meals for today's gap.
+// The app logs what comes back only when the person taps it (views/Nutrition.jsx).
+const _requestMeal = async meal => DEMO ? (await demo()).demoMeal(S(), meal) : LOCAL() ? (await local()).localMeal(S(), meal) : api('/api/coach/meal', { method: 'POST', body: JSON.stringify({ ...(meal?.suggest ? { suggest: true } : { text: meal?.text || '' }), lang: getLang() }) })
+export const requestMeal = (...a) => asked(_requestMeal)(...a).then(track)
 const _requestDebrief = async workoutId => DEMO ? (await demo()).demoDebrief(S(), workoutId) : LOCAL() ? (await local()).localDebrief(S(), workoutId) : api('/api/coach/debrief', { method: 'POST', body: JSON.stringify({ workoutId: workoutId || null, lang: getLang() }) })
 export const requestDebrief = (...a) => asked(_requestDebrief)(...a).then(track)
 // The room: anonymous medians across the profiles on this instance that opted in. Only a

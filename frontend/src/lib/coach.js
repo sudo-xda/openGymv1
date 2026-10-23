@@ -18,12 +18,13 @@ import { uid, todayISO, DAYN } from './format.js'
 import { mergePlan } from './plan-share.js'
 import { deleteRoutine } from './routines.js'
 import { POLICIES } from './progression.js'
+import { pushMessage } from './coach-threads.js'
 import { t, tn } from './i18n.js'
 
 // Bumping this re-prompts everyone: it means what we share, or who we share it with, changed.
 // 2: the training line names the session notes, which the payload carries and version 1 never
-// mentioned.
-export const CONSENT_VERSION = 2
+// mentioned. 3: the nutrition log (meals, water, targets) rides with a debrief and a chat.
+export const CONSENT_VERSION = 3
 
 // Bounds. The whole state has to stay inside the server's 5 MB body limit, and a Coach log
 // that grows forever is exactly the kind of thing that eats it invisibly. Worst case here is
@@ -40,8 +41,14 @@ export const emptyCoach = () => ({
   // Coach did with them. Short, synced, and trimmed with the log — the proposal itself lives
   // server-side (or in the phone's device file) until it is applied or dismissed.
   chat: [],
+  // The conversations as threads (lib/coach-threads.js): `chat` above is the active one's lines.
+  threads: [],
+  activeThread: null,
   // How long the last few jobs took, so the typing bubble can say "usually about 2 minutes".
-  timings: []
+  timings: [],
+  // A debrief of every workout as soon as it is finished (sheets.jsx FinishSummary). On until
+  // switched off in the chat's menu; only ever runs once the Coach is set up and consented.
+  autoDebrief: true
 })
 const coachOf = s => (s.coach = s.coach || emptyCoach())
 
@@ -72,7 +79,8 @@ export const CATEGORY_TEXT = {
   training: () => [t('Your logged training'), t('Sets you logged in the review window: weights, reps, times, effort ratings, how long sessions took, and your session notes.')],
   bodyweight: () => [t('Body weight'), t('Weigh-ins from the same window, and your goal weight if you set one.')],
   profile: () => [t('What you tell the Coach'), t('Your intake answers, including any limitations or injuries you describe.')],
-  prefs: () => [t('A few preferences'), t('Your unit, your language and which effort scale you log.')]
+  prefs: () => [t('A few preferences'), t('Your unit, your language and which effort scale you log.')],
+  nutrition: () => [t('Your nutrition log'), t('Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.')]
 }
 export const hasConsent = S => !!S?.coach?.consent?.agreedAt && S.coach.consent.version === CONSENT_VERSION
 
@@ -327,7 +335,10 @@ function trim(s) {
   const c = coachOf(s)
   let guard = 0
   while (JSON.stringify(c).length > NAMESPACE_MAX && guard++ < 60) {
+    // `c.chat` is the active thread's own array, so this trims that thread; older threads go
+    // whole, oldest first, before anything the log or the snapshots hold.
     if ((c.chat || []).length > 8) c.chat.shift()
+    else if ((c.threads || []).length > 1) c.threads = c.threads.filter((th, i) => th.id === c.activeThread || i > 0)
     else if ((c.snapshots || []).length > 1) c.snapshots.shift()
     else if ((c.log || []).length > 1) c.log.shift()
     else break
@@ -343,7 +354,8 @@ function trim(s) {
  */
 export function appendChat(s, entry) {
   const c = coachOf(s)
-  c.chat = [...(c.chat || []), { id: entry.id || uid(), at: entry.at || Date.now(), ...entry }].slice(-CHAT_MAX)
+  // Into the active thread (lib/coach-threads.js), which keeps `c.chat` pointing at its lines.
+  pushMessage(c, entry)
   trim(s)
 }
 

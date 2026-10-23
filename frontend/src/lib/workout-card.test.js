@@ -218,3 +218,74 @@ describe('card colours', () => {
     expect(viewAspect({})).toBeGreaterThan(1)
   })
 })
+
+describe('top lifts and the PR badge', () => {
+  const names = { bench: 'barbell bench press', curl: 'dumbbell curl', plank: 'plank' }
+  const nameOf = e => names[e.id] || e.id
+  const w = {
+    id: 'w2', d: '2026-09-03', start: 0, end: 40 * 60000, name: 'Push', vol: 1000, prs: ['bench', 'curl'],
+    entries: [
+      { id: 'bench', target: { mode: 'reps' }, sets: [{ w: 60, r: 8, done: true }, { w: 70, r: 3, done: true }] },
+      { id: 'curl', target: { mode: 'reps' }, sets: [{ w: 12, r: 10, done: true }] },
+      { id: 'plank', target: { mode: 'time' }, sets: [{ sec: 60, done: true }] },
+    ],
+  }
+  it('names the heaviest sets by estimated 1RM, the timed work left out, and counts the PRs', () => {
+    const m = workoutCardModel(w, { unit: 'kg', nameOf })
+    expect(m.prCount).toBe(2)
+    expect(m.topLifts).toEqual([{ name: 'Barbell Bench Press', line: '70 kg × 3' }, { name: 'Dumbbell Curl', line: '12 kg × 10' }])
+  })
+})
+
+describe('story and square formats', () => {
+  const model = {
+    title: 'Push', date: 'Thu, 3 Sep 2026', prCount: 3,
+    stats: [{ label: 'Duration', value: '58 min' }, { label: 'Sets', value: '5' }, { label: 'Volume', value: '1,790 kg' }],
+    records: ['Barbell Bench Press', 'Dumbbell Curl'],
+    topLifts: [{ name: 'Barbell Bench Press', line: '70 kg × 3' }],
+    levels: { chest: 4 },
+  }
+  const map = { aspect: 1280 / 727 }
+  const texts = layout => layout.items.filter(i => i.kind === 'text').map(i => i.text)
+
+  it('a story is 1080×1920 with the content centred, the badge on the bar and the wordmark at the foot', () => {
+    const layout = layoutWorkoutCard(model, { measure, map, format: 'story' })
+    expect([layout.width, layout.height, layout.format, layout.decor]).toEqual([1080, 1920, 'story', true])
+    const badge = layout.items.find(i => i.kind === 'badge')
+    expect(badge.text).toBe('PR ×3')
+    expect(badge.x + badge.w).toBeLessThanOrEqual(1080 - 88)
+    expect(texts(layout)).toContain('Top lifts')
+    expect(layout.items.filter(i => i.kind === 'map')).toHaveLength(2)
+    const first = layout.items.find(i => i.kind === 'bar')
+    const brand = layout.items.find(i => i.brand)
+    expect(first.y).toBeGreaterThan(88)              // pushed down by the centring
+    expect(brand.y).toBe(1920 - 88)
+    for (const item of layout.items) expect(item.y).toBeLessThanOrEqual(1920)
+  })
+
+  it('a square is 1080×1080 and gives the map up before anything else, so the card fits', () => {
+    const layout = layoutWorkoutCard(model, { measure, map, format: 'square' })
+    expect([layout.width, layout.height]).toEqual([1080, 1080])
+    expect(layout.items.filter(i => i.kind === 'map')).toHaveLength(0)
+    expect(texts(layout)).toContain('Top lifts')
+    expect(texts(layout)).toContain('Barbell Bench Press')
+    const ys = layout.items.filter(i => i.kind === 'text' && !i.brand).map(i => i.y)
+    expect(Math.max(...ys)).toBeLessThanOrEqual(1080 - 88)
+  })
+
+  it('with six records and three lifts a square counts the records rather than overflowing', () => {
+    const busy = { ...model, records: ['A', 'B', 'C', 'D', 'E', 'F'], topLifts: [{ name: 'A', line: '1 kg × 1' }, { name: 'B', line: '1 kg × 1' }, { name: 'C', line: '1 kg × 1' }] }
+    const layout = layoutWorkoutCard(busy, { measure, map, format: 'square' })
+    expect(layout.height).toBe(1080)
+    expect(texts(layout).some(s => s.startsWith('and ') && s.endsWith(' more'))).toBe(true)
+    for (const item of layout.items) expect(item.y).toBeLessThanOrEqual(1080)
+  })
+
+  it('a single PR reads "PR", none means no badge, and auto stays as tall as it needs', () => {
+    expect(layoutWorkoutCard({ ...model, prCount: 1 }, { measure, format: 'story' }).items.find(i => i.kind === 'badge').text).toBe('PR')
+    expect(layoutWorkoutCard({ ...model, prCount: 0 }, { measure, format: 'story' }).items.find(i => i.kind === 'badge')).toBeUndefined()
+    const auto = layoutWorkoutCard(model, { measure })
+    expect(auto.format).toBeUndefined()
+    expect(auto.height).not.toBe(1920)
+  })
+})

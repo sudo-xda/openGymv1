@@ -1535,6 +1535,8 @@ export const PT_BR_OVERRIDES = {
   // --- import with no account: workouts on this device ---
   'This device has 1 workout that is not in this backup. Replacing deletes it.': 'Este dispositivo tem 1 treino que não está neste backup. Substituir exclui esse treino.',
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': 'Este dispositivo tem {0} treinos que não estão neste backup. Substituir exclui esses treinos.',
+  'Your nutrition log': 'Seu diário de nutrição',
+  'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'As refeições que você registrou, nas suas palavras e com seus números, sua água e suas metas de calorias e macros: hoje e a semana anterior.',
 }
 
 export default { ...pt, ...PT_BR_OVERRIDES }

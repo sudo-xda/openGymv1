@@ -64,7 +64,12 @@ import { stampWorkout } from './lib/sync-merge.js'
 import { hrLabel } from './lib/heart-rate.js'
 import { weeklyWeights } from './lib/bodyweight.js'
 import { workoutText } from './lib/workout-text.js'
-import { workoutCardModel, layoutWorkoutCard, drawWorkoutCard, viewAspect, CARD_FONT } from './lib/workout-card.js'
+import { workoutCardModel, layoutWorkoutCard, drawWorkoutCard, viewAspect, CARD_FONT, FORMATS } from './lib/workout-card.js'
+import DebriefSummary from './components/DebriefSummary.jsx'
+import { useCoachStatus, requestDebrief, resolvePending, settleAwaited, disclosure, coachVia } from './lib/coach-api.js'
+import { hasConsent, recordDebrief, appendChat, emptyCoach } from './lib/coach.js'
+import { useCoachGate } from './lib/use-coach-gate.js'
+import { DEMO } from './lib/demo.js'
 import { copyText } from './lib/clipboard.js'
 import { queueRemaining, pinState } from './lib/queue.js'
 import { DAY_NOTE_TAGS, DAY_NOTE_LABEL, DAY_NOTE_ICON, dayNoteOf, dayNoteLine, canNoteDay, withDayNote } from './lib/day-notes.js'
@@ -2767,10 +2772,17 @@ function WorkoutDetail({ w, close }) {
 // "Share as image" (#453): the card lib/workout-card.js lays out, painted in the theme and accent
 // the app is showing right now, previewed before it goes anywhere. The muscle map is the finish
 // summary's, for this one session; whether the card carries it is remembered with the profile.
+// The exercise's display name, as the detail sheet and the finish summary both label a card.
+const cardNameOf = e => (EXIDX[e.id] ? exerciseNameFor(EXIDX[e.id]) : (e.n || e.id))
+/** "Share workout card" from the finish summary: the same sheet the detail sheet opens. */
+export const shareWorkoutCardSheet = w => ui().openSheet(c2 => <ShareWorkoutImage w={w} nameOf={cardNameOf} close={c2} />)
 function ShareWorkoutImage({ w, nameOf, close }) {
   const st = useStore(s => s.S)
   const update = useStore(s => s.update)
   const withMap = st.shareMap !== false
+  // Which shape: the card as tall as it needs to be, a 9:16 story or a 1:1 square (#share-card).
+  // Remembered with the profile, like the map toggle.
+  const format = FORMATS[st.shareFormat] ? st.shareFormat : 'auto'
   const model = useMemo(() => workoutCardModel(w, { unit: st.unit, nameOf }), [w, st.unit])
   // The last picture stays up while the next one is drawn, so the toggle never blanks the sheet.
   const [img, setImg] = useState(null)
@@ -2778,7 +2790,7 @@ function ShareWorkoutImage({ w, nameOf, close }) {
   const shown = useRef(null)
   useEffect(() => {
     let alive = true
-    workoutCardImage(model, { map: withMap, body: st.body })
+    workoutCardImage(model, { map: withMap, body: st.body, format })
       .then(blob => {
         if (!alive) return
         if (!blob) { setImg(prev => ({ ...prev, failed: true })); return }
@@ -2788,9 +2800,9 @@ function ShareWorkoutImage({ w, nameOf, close }) {
       })
       .catch(() => { if (alive) setImg(prev => ({ ...prev, failed: true })) })
     return () => { alive = false }
-  }, [model, withMap, st.body])
+  }, [model, withMap, st.body, format])
   useEffect(() => () => { if (shown.current) URL.revokeObjectURL(shown.current) }, [])
-  const name = 'opengym-workout-' + (workoutDay(w) || todayISO()) + '.png'
+  const name = 'opengym-workout-' + (workoutDay(w) || todayISO()) + (format === 'auto' ? '' : '-' + format) + '.png'
   const share = async () => {
     setBusy(true)
     await shareImage(img.blob, name, w.name || 'openGym')
@@ -2798,8 +2810,10 @@ function ShareWorkoutImage({ w, nameOf, close }) {
     close()
   }
   return <>
-    <h3>{t('Share workout')}</h3>
-    <div className="share-card">
+    <h3>{t('Share workout card')}</h3>
+    <Segmented className="seg-range" value={format} onChange={v => update(s => { s.shareFormat = v })}
+      options={[{ value: 'story', label: t('Story 9:16') }, { value: 'square', label: t('Square 1:1') }, { value: 'auto', label: t('Fit') }]} />
+    <div className={'share-card' + (format === 'story' ? ' story' : format === 'square' ? ' square' : '')}>
       {img?.url
         ? <img src={img.url} alt={t('Preview of the image to share')} />
         : img?.failed ? <div className="share-card-ph small muted">{t('Could not create the image')}</div>
@@ -2810,13 +2824,18 @@ function ShareWorkoutImage({ w, nameOf, close }) {
         <Switch checked={withMap} aria-label={t('Muscle map')} onChange={v => update(s => { s.shareMap = v })} />
       </Row>
     </div>}
-    <Button variant="primary" icon="share" disabled={!img?.blob || busy} onClick={share}>{t('Share')}</Button>
+    <Button variant="primary" icon="share" disabled={!img?.blob || busy} onClick={share}>{MOBILE || navigator.canShare ? t('Share / Save card') : t('Save card')}</Button>
   </>
 }
-async function workoutCardImage(model, { map, body }) {
+// The story and the square are painted in the brand's dark palette whatever the app's theme —
+// a card in a feed looks the same from every phone — with the profile's accent kept.
+const SOCIAL_COLORS = { bg: '#0c0e12', surface: '#15181e', tile: '#1f232b', label: '#ffffff', label2: '#9aa3b2' }
+async function workoutCardImage(model, { map, body, format = 'auto' }) {
   const root = getComputedStyle(document.documentElement)
   const css = (name, fallback) => root.getPropertyValue(name).trim() || fallback
-  const colors = { bg: css('--bg', '#000'), surface: css('--surface', '#1c1c1e'), tile: css('--surface-2', '#2c2c2e'), label: css('--label', '#fff'), label2: css('--label-2', '#999'), acc: css('--acc', '#30d158') }
+  const colors = format === 'auto'
+    ? { bg: css('--bg', '#000'), surface: css('--surface', '#1c1c1e'), tile: css('--surface-2', '#2c2c2e'), label: css('--label', '#fff'), label2: css('--label-2', '#999'), acc: css('--acc', '#30d158') }
+    : { ...SOCIAL_COLORS, acc: css('--acc', '#30d158') }
   // The body geometry is ~90 KB and lazy everywhere else too (components/BodyMap.jsx).
   const geometry = map && model.levels ? (await import('./lib/body-paths.js')).default : null
   const shape = geometry && (geometry[body] || geometry.male)
@@ -2824,7 +2843,7 @@ async function workoutCardImage(model, { map, body }) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
   const measure = (text, weight, size) => { ctx.font = `${weight} ${size}px ${CARD_FONT}`; return ctx.measureText(text).width }
-  const layout = layoutWorkoutCard(model, { measure, rtl: document.documentElement.dir === 'rtl', map: shape ? { aspect: viewAspect(shape.front) } : null })
+  const layout = layoutWorkoutCard(model, { measure, rtl: document.documentElement.dir === 'rtl', map: shape ? { aspect: viewAspect(shape.front) } : null, format })
   canvas.width = layout.width
   canvas.height = layout.height
   drawWorkoutCard(ctx, layout, colors, shape ? { body: shape, levels: model.levels } : null)
@@ -3503,7 +3522,78 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
     {/* The moment for a progress photo or the clip of a set: the workout is already saved, so
         what is added here goes straight onto its record. */}
     <div style={{ textAlign: 'start' }}><WorkoutMediaSection w={w} hint /></div>
+    {/* The Coach's read of the session, written as soon as it is saved (lib/coach.js autoDebrief). */}
+    <AutoDebrief w={w} close={close} />
+    <Button icon="share" style={{ marginBottom: 8 }} onClick={() => shareWorkoutCardSheet(w)}>{t('Share workout card')}</Button>
     <Button variant="primary" onClick={() => closeThenNav(close, '/home')}>{t('Nice!')}</Button>
+  </div>
+}
+/**
+ * The workout summary the Coach writes by itself when a session ends: a debrief job is started
+ * the moment the summary opens, and its answer is shown here, kept in the Coach's log and
+ * written into the chat thread, the way a debrief asked for by hand is. Only when the Coach is
+ * set up, consented to, and the switch in the chat's menu is on; a profile that said "not now"
+ * to data sharing is never asked here, in the middle of finishing — it is simply skipped.
+ */
+function AutoDebrief({ w, close }) {
+  const S = useStore(s => s.S)
+  const update = useStore(s => s.update)
+  const gate = useCoachGate()
+  const wanted = gate.ok && hasConsent(S) && !!S.coach?.profile && S.coach?.autoDebrief !== false && !!w?.id
+  const [state, setState] = useState(wanted ? 'starting' : 'off')   // off | starting | running | done | failed | skipped
+  const [result, setResult] = useState(null)
+  const { job, pending, lastError, last, refresh } = useCoachStatus(state === 'starting' || state === 'running')
+  const jobId = useRef(null)
+  useEffect(() => {
+    if (!wanted) return
+    let alive = true
+    ;(async () => {
+      // The data-sharing question is never asked here, in the middle of finishing a workout: a
+      // provider this device has not yet said yes to means no summary, not a sheet.
+      if (!DEMO) {
+        const { consentTarget, hasAiConsent } = await import('./lib/coach-consent.js')
+        const target = consentTarget(await disclosure(), coachVia())
+        if (target && !target.local && !(await hasAiConsent(target))) throw new Error('no consent yet')
+      }
+      const r = await requestDebrief(w.id)
+      if (!alive) return
+      jobId.current = r?.job?.id || null
+      setState('running')
+      refresh()
+    })()
+      // Busy, capped, declined or offline: the summary is simply not written; nothing to say here.
+      .catch(() => { if (alive) setState('skipped') })
+    return () => { alive = false }
+  }, [])
+  useEffect(() => {
+    if (state !== 'running') return
+    if (pending?.kind === 'debrief' && pending.workout?.id === w.id) {
+      setResult(pending)
+      setState('done')
+      update(s => { const ref = recordDebrief(s, pending); appendChat(s, { role: 'coach', kind: 'debrief', ref, text: '' }) })
+      resolvePending({ accepted: ['debrief'] }).catch(() => {})
+      settleAwaited(jobId.current)
+      refresh()
+    } else if (!job && jobId.current && (last?.id === jobId.current || lastError) && !pending) {
+      setState('failed')
+      settleAwaited(jobId.current)
+    }
+  }, [state, job, pending?.id, last?.id, lastError])
+  if (state === 'off' || state === 'skipped') return null
+  return <div className="auto-deb" style={{ textAlign: 'start' }}>
+    <div className="auto-deb-h"><Icon name="sparkles" />{t('AI workout summary')}</div>
+    {state !== 'done' && state !== 'failed' && <div className="auto-deb-wait">
+      <div className="bub typing" style={{ background: 'var(--surface-2)' }}><i /><i /><i /></div>
+      <span>{t('The Coach is reading this session against everything you have logged…')}</span>
+    </div>}
+    {state === 'failed' && <div className="small muted">{t('The Coach could not write a summary this time. You can ask for one in the chat.')}</div>}
+    {state === 'done' && result && <div className="pcard auto-deb-card">
+      {!!result.summary && <p className="pcard-sum" style={{ padding: '14px 18px 0' }}>{result.summary}</p>}
+      <DebriefSummary p={result} S={S} />
+      <div style={{ padding: '6px 18px 14px' }}>
+        <Button size="sm" icon="chat" onClick={() => closeThenNav(close, '/coach')}>{t('Open in Coach')}</Button>
+      </div>
+    </div>}
   </div>
 }
 export function finishWorkout() {

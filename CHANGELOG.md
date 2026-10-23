@@ -1,5 +1,44 @@
 # Changelog
 
+## Unreleased
+
+The Coach learns to talk, and to write up every workout by itself.
+
+- **Ask the Coach anything.** The chat takes a plain question now — "how is my bench going",
+  "how much protein for my goal", "cues for a better squat" — and answers in prose from your
+  whole log: the recent sessions set by set, the stall picture, your body weight, and a summary
+  of everything you have ever logged (how long, how often, every lift's first and best). Answers
+  come as formatted text: headings, lists, tables, callouts. Each one has Copy and Regenerate.
+  Plans still change only through a review.
+- **Conversations as threads.** A slide-out drawer lists every chat under Today, Yesterday,
+  Previous 7 days and Older, with search. New chat, rename, delete; a thread names itself from
+  your first message and the Coach offers a better title. An existing chat becomes Thread #1.
+- **A new face for the chat.** A frosted header with a live status pill naming the provider and
+  model, a greeting with this week's volume, sessions, streak and body weight, and starter
+  questions in four groups: Workouts, Nutrition, Progress, Technique. A phone that brought its
+  own API key and lost it is asked for it right there, in a small modal.
+- **AI workout summary.** Finish a workout and the Coach's debrief is written at once, under the
+  finish summary: the score, what went well, what to watch, what to do next time — read against
+  the same routine's earlier sessions and your all-time bests, not just last week. Kept in the
+  Coach's history and in the chat. Off switch in the chat's menu (Auto workout summary).
+- **Share a workout card.** From the finish summary and from any past session: a dark card with
+  the duration, sets, volume, a PR badge, the top lifts and the new records, as a 9:16 story, a
+  1:1 square or the fitted card, previewed before it goes to the share sheet or your downloads.
+- **Nutrition.** A food log, from Home: meals with calories and macros, water, and daily targets
+  the app suggests from your body weight and goal. Log a meal three ways: a quick-add list of
+  common foods at USDA servings (type "2 eggs and toast" and it reads the words), the numbers
+  typed in, or **Describe** it and the Coach reads it into items. The server checks every
+  calorie figure against the macros and adds the totals up itself, so the model's arithmetic is
+  never trusted. **What should I eat next?** asks for three meals that fit what is left of the
+  day, each loggable with one tap. The workout summary and the chat read the day's food too.
+  Nutrition is a new data category on the Coach's consent screen, so it is shown once more.
+- **Muscle recovery.** A card in Stats puts a recovery percentage on all 18 muscles from the
+  fatigue model — load, sets to failure, each muscle's recovery half-life — colour-coded Ready
+  to train, Recovering, Fatigued, with a count of each.
+- Self-hosting: one new route, `POST /api/coach/ask`, documented in `api/openapi.yaml`; the
+  public config names the Coach's model. Developers on Windows: the fixture provider's path is
+  resolved properly now, so the queue tests run there too.
+
 ## v1.4.2 (2026-10-23)
 
 openGym comes to the App Store, with an Apple Watch app in tow. Plus everything you asked for

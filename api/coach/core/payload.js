@@ -485,7 +485,7 @@ export function build(S, opts = {}) {
   const profile = opts.intake || coach.profile || null;
   const p = {
     coach_contract: CONTRACT,
-    task: opts.kind === 'review' ? 'review' : opts.kind === 'debrief' ? 'debrief' : 'create',
+    task: opts.kind === 'review' ? 'review' : opts.kind === 'debrief' ? 'debrief' : opts.kind === 'chat' ? 'chat' : opts.kind === 'meal' ? (opts.meal && opts.meal.suggest ? 'mealsuggest' : 'meal') : 'create',
     meta: {
       profile: opts.handle,
       // Both are short codes in any real state; cut anyway, since the state is the client's.
@@ -523,9 +523,15 @@ export function build(S, opts = {}) {
     if (w) {
       const all = (S.workouts || []).filter(x => x && x.d);
       const idx = all.indexOf(w);
-      const previous = all.slice(0, idx).filter(x => x.name && x.name === w.name).slice(-3);
+      const same = all.slice(0, idx).filter(x => x.name && x.name === w.name);
+      const previous = same.slice(-3);
       p.session = { id: ident(w.id) || null, ...cleanWorkout(w) };
       p.previous = previous.map(cleanWorkout);
+      // The same routine further back, one line per exercise, and the whole history in numbers:
+      // a debrief that only knows last week cannot say "your best in six months" or "this lift
+      // has not moved since March", and those are the sentences people come back for.
+      p.earlier = same.slice(0, -3).slice(-EARLIER_SESSIONS).map(compactWorkout);
+      p.career = careerOf(S, w);
       const inSession = new Set(entriesOf(w).map(en => ident(en.id)));
       const agg = aggregates(S, [w]);
       p.aggregates = { ...agg, exercises: agg.exercises.filter(e => inSession.has(e.id)) };
@@ -536,10 +542,50 @@ export function build(S, opts = {}) {
       since.setDate(since.getDate() - 28);
       const dated = !!on && Number.isFinite(since.getTime());
       p.bodyweight = { goal: num(S.targetW) ?? null, series: dated ? weighIns(S, iso(since), on) : [] };
+      // What was eaten that day and the week before it, when a nutrition log exists at all.
+      const nut = nutritionOf(S, on || iso(new Date()));
+      if (nut) p.nutrition = nut;
     } else {
       p.session = null;
       p.previous = [];
     }
+    if (opts.cohort) p.cohort = cleanCohort(opts.cohort);
+  } else if (opts.kind === 'meal') {
+    // A meal in words, or three meals for what is left of today. Neither reads the training
+    // log beyond the career line a suggestion scales to; a described meal reads nothing at all
+    // but the words and the unit.
+    const m = opts.meal || {};
+    if (m.suggest) {
+      const nut = nutritionOf(S, iso(new Date()));
+      p.mealGap = {
+        targets: nut.targets, logged: nut.today, meals: nut.todayMeals,
+        remaining: nut.targets ? {
+          cal: nut.targets.cal - nut.today.cal, protein: round1(nut.targets.protein - nut.today.protein),
+          carbs: round1(nut.targets.carbs - nut.today.carbs), fat: round1(nut.targets.fat - nut.today.fat)
+        } : null
+      };
+      p.career = careerOf(S, null);
+    } else {
+      p.meal = { text: String(m.text || '').slice(0, MEAL_WORDS_MAX) };
+    }
+  } else if (opts.kind === 'chat') {
+    // A question, answered from the same reading a review gets — the recent sessions, the last
+    // one set by set — plus the career summary, so "how is my squat going" has the whole curve
+    // behind it and not just the last fortnight. No library: a chat names nothing new.
+    // The last sessions whenever they were: someone back after three months off still wants
+    // their numbers, and the review's twelve-week cutoff would hand the model nothing.
+    const workouts = (S.workouts || []).filter(w => w && day(w.d)).slice(-CHAT_SESSIONS);
+    p.window = {
+      from: day(workouts[0]?.d),
+      to: day(workouts[workouts.length - 1]?.d),
+      workouts: workouts.map((w, i) => (i === workouts.length - 1 ? cleanWorkout(w) : compactWorkout(w)))
+    };
+    p.aggregates = aggregates(S, workouts);
+    p.bodyweight = { goal: num(S.targetW) ?? null, series: weighIns(S, p.window.from, null) };
+    p.career = careerOf(S, null);
+    const nut = nutritionOf(S, iso(new Date()));
+    if (nut) p.nutrition = nut;
+    p.question = String(opts.question || '').slice(0, MAX_NOTE_CHARS);
     if (opts.cohort) p.cohort = cleanCohort(opts.cohort);
   } else if (opts.kind === 'review') {
     const workouts = reviewWindow(S, coach.lastReview?.at ? String(coach.lastReview.at).slice(0, 10) : null);
@@ -580,10 +626,88 @@ export function build(S, opts = {}) {
     }
   }
   if (opts.kind !== 'debrief') {
-    const said = conversation(coach, [opts.note, opts.refine]);
+    // A chat thread names its own lines: threads live on the device and the synced copy of the
+    // state may be a debounce behind, so the app sends the thread it is showing.
+    const said = Array.isArray(opts.conversation) ? cleanConversation(opts.conversation) : conversation(coach, [opts.note, opts.refine, opts.question]);
     if (said.length) p.conversation = said;
   }
   return p;
+}
+
+/* ---------- the whole history, in numbers ----------
+   What a debrief and a chat read beyond the window: how long and how often this person has
+   trained, and for each lift where it started, the best it has ever been and when. Bounded like
+   everything else here — a dozen exercises, the ones in the session first, then the most
+   trained — so a ten-year log is a page, not a payload. */
+export const EARLIER_SESSIONS = 6;
+export const CHAT_SESSIONS = 10;
+export const CAREER_EXERCISES = 12;
+const RECENT_DAYS = 56;
+// Epley, the app's default estimate (frontend/src/lib/onerm.js): enough to compare a lift with
+// itself across months. A set of more than ten reps says little about a one-rep max.
+const epley = (w, r) => (w > 0 && r > 0 ? Math.round(w * (1 + Math.min(r, 10) / 30) * 10) / 10 : 0);
+export function careerOf(S, focus) {
+  const all = (S.workouts || []).filter(w => w && typeof w === 'object' && day(w.d)).slice().sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
+  if (!all.length) return null;
+  const first = day(all[0].d);
+  const last = day(all[all.length - 1].d);
+  const span = Math.max(0, Math.round((new Date(last + 'T12:00:00') - new Date(first + 'T12:00:00')) / 86400000));
+  const cut = new Date(last + 'T12:00:00'); cut.setDate(cut.getDate() - RECENT_DAYS);
+  const recent = all.filter(w => w.d >= iso(cut));
+  const minutes = recent.map(w => (w.end && w.start ? Math.round((w.end - w.start) / 60000) : null)).filter(n => n > 0);
+
+  // Per exercise: sessions, first and best top set, best estimated 1RM, and when.
+  const stats = new Map();
+  all.forEach(w => entriesOf(w).forEach(en => {
+    const work = setsOf(en).filter(s => s.done && !isWarmupSet(s) && num(s.w) !== undefined && num(s.r) !== undefined && Number(s.w) > 0);
+    if (!work.length) return;
+    const id = ident(en.id);
+    const st = stats.get(id) || { id, name: libraryName(en.id), sessions: 0, first: null, best: null, bestEst: null };
+    st.sessions++;
+    let top = null;
+    work.forEach(s => { if (!top || Number(s.w) > top.w || (Number(s.w) === top.w && Number(s.r) > top.r)) top = { w: Number(s.w), r: Number(s.r) }; });
+    const d = day(w.d);
+    if (!st.first) st.first = { d, w: top.w, r: top.r };
+    if (!st.best || top.w > st.best.w || (top.w === st.best.w && top.r > st.best.r)) st.best = { d, w: top.w, r: top.r };
+    const est = Math.max(...work.map(s => epley(Number(s.w), Number(s.r))));
+    if (est > 0 && (!st.bestEst || est > st.bestEst.est)) st.bestEst = { d, est };
+    stats.set(id, st);
+  }));
+  const inFocus = new Set(focus ? entriesOf(focus).map(en => ident(en.id)) : []);
+  const bests = [...stats.values()]
+    .sort((a, b) => (inFocus.has(b.id) - inFocus.has(a.id)) || b.sessions - a.sessions)
+    .slice(0, CAREER_EXERCISES)
+    .map(st => ({
+      id: st.id, name: st.name, sessions: st.sessions,
+      first: st.first ? { d: st.first.d, top: `${st.first.w}x${st.first.r}` } : null,
+      best: st.best ? { d: st.best.d, top: `${st.best.w}x${st.best.r}` } : null,
+      bestEst1RM: st.bestEst ? { d: st.bestEst.d, kg: st.bestEst.est } : null
+    }));
+
+  const weigh = weighIns(S, null, null);
+  const bw12 = weigh.filter(b => b.d >= iso(new Date(new Date(last + 'T12:00:00').setDate(new Date(last + 'T12:00:00').getDate() - 84))));
+  return {
+    sessions: all.length,
+    since: first,
+    last,
+    weeks: Math.max(1, Math.round(span / 7)),
+    sessionsPerWeekRecent: Math.round((recent.length / (RECENT_DAYS / 7)) * 10) / 10,
+    prsTotal: all.reduce((n, w) => n + list(w.prs).length, 0),
+    minutesRecent: minutes.length ? minutes.slice().sort((a, b) => a - b)[Math.floor(minutes.length / 2)] : null,
+    bests,
+    bodyweight12w: bw12.length > 1 ? { from: bw12[0], to: bw12[bw12.length - 1] } : null
+  };
+}
+
+// The thread the app is showing, as the lines a chat job reads. Same shape as conversation()
+// above, longer: a thread is the thing being continued, not a hint.
+export const THREAD_LINES = 12;
+export const THREAD_CHARS = 400;
+function cleanConversation(lines) {
+  return list(lines)
+    .filter(m => m && typeof m === 'object' && (m.who === 'user' || m.who === 'coach') && typeof m.text === 'string' && m.text.trim())
+    .slice(-THREAD_LINES)
+    .map(m => ({ who: m.who, text: m.text.trim().slice(0, THREAD_CHARS) }));
 }
 
 // The last few lines of the chat, so "shorter, like last time" has something to point at.
@@ -601,4 +725,44 @@ function conversation(coach, current) {
     .filter(m => !(m.role === 'user' && now.has(m.text.trim())))
     .slice(-CONVERSATION_LINES)
     .map(m => ({ who: m.role === 'user' ? 'user' : 'coach', text: m.text.trim().slice(0, CONVERSATION_CHARS) }));
+}
+
+/* ---------- what was eaten ----------
+   The nutrition log (frontend/src/lib/nutrition.js): S.meals is one entry per meal with the
+   numbers the app kept, S.water millilitres per day, S.nutritionTargets the daily goals. A
+   debrief and a chat get the day in question and the week before it, totals and a line per
+   meal; the words of a meal are bounded like a note. Nothing when nothing was ever logged. */
+export const MEAL_WORDS_MAX = 500;
+export const MEAL_LINE_MAX = 120;
+export const MEALS_PER_DAY_MAX = 12;
+const round1 = n => Math.round((Number(n) || 0) * 10) / 10;
+const mealsOn = (S, d) => list(S.meals).filter(m => m && typeof m === 'object' && day(m.d) === d);
+const sumMeals = ms => ({
+  cal: Math.round(ms.reduce((n, m) => n + (Number(m.cal) || 0), 0)),
+  protein: round1(ms.reduce((n, m) => n + (Number(m.protein) || 0), 0)),
+  carbs: round1(ms.reduce((n, m) => n + (Number(m.carbs) || 0), 0)),
+  fat: round1(ms.reduce((n, m) => n + (Number(m.fat) || 0), 0))
+});
+export function nutritionOf(S, on) {
+  const meals = list(S.meals).filter(m => m && typeof m === 'object' && day(m.d));
+  const targets = S.nutritionTargets && typeof S.nutritionTargets === 'object' ? S.nutritionTargets : null;
+  if (!meals.length && !targets) return null;
+  const d = day(on) || iso(new Date());
+  const todays = mealsOn(S, d).slice(0, MEALS_PER_DAY_MAX);
+  const since = new Date(d + 'T12:00:00'); since.setDate(since.getDate() - 7);
+  const from = iso(since);
+  const week = meals.filter(m => m.d >= from && m.d < d);
+  const days = new Set(week.map(m => day(m.d)));
+  const weekSum = sumMeals(week);
+  const water = S.water && typeof S.water === 'object' && S.water[d] ? num(S.water[d].ml) ?? null : null;
+  return {
+    targets: targets ? { cal: num(targets.cal) ?? null, protein: num(targets.protein) ?? null, carbs: num(targets.carbs) ?? null, fat: num(targets.fat) ?? null, water: num(targets.water) ?? null } : null,
+    day: d,
+    today: { ...sumMeals(todays), water },
+    todayMeals: todays.map(m => ({ text: text(m.text || m.name, MEAL_LINE_MAX), cal: Math.round(Number(m.cal) || 0), protein: round1(m.protein) })),
+    week: days.size ? {
+      daysLogged: days.size, avgCal: Math.round(weekSum.cal / days.size), avgProtein: round1(weekSum.protein / days.size),
+      avgCarbs: round1(weekSum.carbs / days.size), avgFat: round1(weekSum.fat / days.size)
+    } : null
+  };
 }

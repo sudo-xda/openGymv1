@@ -24,6 +24,7 @@ const offEquipment = (ctx, id) => !!ctx.equipment?.length && libraryHas(id)
   && !(ctx.offered && ctx.offered.has(id)) && !equipmentAllows(ctx.equipment, id);
 const OFF_EQUIPMENT = (where, id) => `${where} "${id}" needs equipment the user does not have — use an exercise from the library provided in the payload`;
 import { glyphStr } from './glyphs.js';
+import { crossCheck } from './foods.js';
 
 // The closed list (FR-23 / C3). Adding a member here is a deliberate act with an apply
 // implementation on the client to match; there is no default case anywhere.
@@ -647,4 +648,87 @@ export function validateDebrief(data) {
   if (!DEBRIEF_LISTS.some(k => lists[k].length)) errors.push('at least one of highlights, watch or nextTime must have an item');
   if (errors.length) return fail(errors);
   return { ok: true, proposal: { summary: clampStr(data.summary.trim(), 600), score, ...lists } };
+}
+
+/* ---------- a chat answer ----------
+   Nothing here reaches a plan: the reply is text the app renders as Markdown and the title names
+   the thread. The bounds are the point — a model that answers with a novel, or with the change
+   list of a review, is told so once and otherwise the job fails. */
+export const CHAT_REPLY_MAX = 6000;
+export const CHAT_TITLE_MAX = 60;
+export function validateChat(data) {
+  if (!data || typeof data !== 'object') return fail(['the answer was not an object']);
+  const errors = [];
+  if (Array.isArray(data.changes) && data.changes.length) errors.push('a chat answer carries no plan changes — drop "changes" and answer in "reply"');
+  if (!isStr(data.reply)) errors.push('reply is required — the answer, as Markdown text');
+  if (errors.length) return fail(errors);
+  const reply = clampStr(data.reply.trim(), CHAT_REPLY_MAX);
+  const title = isStr(data.title) ? clampStr(data.title.trim().replace(/\s+/g, ' '), CHAT_TITLE_MAX) : null;
+  return { ok: true, proposal: { reply, ...(title ? { title } : {}) } };
+}
+
+/* ---------- a meal, and three suggested meals ----------
+   Numbers only, bounded, and never the model's arithmetic: each item's calories are checked
+   against its macros (foods.js crossCheck) and replaced by the sum when they disagree, and the
+   meal's totals are added up here. A model that answers with an empty list for "2 eggs" is told
+   so once through the repair round. */
+export const MEAL_ITEMS_MAX = 20;
+export const MEAL_NAME_MAX = 80;
+export const MEAL_QTY_MAX = 60;
+export const MEAL_TEXT_MAX = 300;
+export const MEAL_NOTE_MAX = 200;
+const MACRO_MAX = 2000;      // grams in one item — nobody logs two kilos of protein
+const CAL_MAX = 10000;
+const macro = v => {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v.trim()) ? Number(v) : NaN;
+  return Number.isFinite(n) && n >= 0 ? Math.min(MACRO_MAX, Math.round(n * 10) / 10) : null;
+};
+function cleanFood(x, i, errors, textKey, textMax) {
+  if (!x || typeof x !== 'object') { errors.push(`item ${i + 1} is not an object`); return null; }
+  const p = macro(x.protein), c = macro(x.carbs), f = macro(x.fat);
+  if (p == null || c == null || f == null) { errors.push(`item ${i + 1}: protein, carbs and fat must be numbers of grams, 0 or more`); return null; }
+  const checked = crossCheck(x.cal, p, c, f);
+  const out = { protein: p, carbs: c, fat: f, cal: Math.min(CAL_MAX, checked.cal), adjusted: checked.adjusted };
+  if (textKey) out[textKey] = isStr(x[textKey]) ? clampStr(x[textKey].trim(), textMax) : '';
+  return out;
+}
+const round1 = n => Math.round(n * 10) / 10;
+function totals(list) {
+  return {
+    cal: list.reduce((n, x) => n + x.cal, 0),
+    protein: round1(list.reduce((n, x) => n + x.protein, 0)),
+    carbs: round1(list.reduce((n, x) => n + x.carbs, 0)),
+    fat: round1(list.reduce((n, x) => n + x.fat, 0))
+  };
+}
+export function validateMeal(data) {
+  if (!data || typeof data !== 'object') return fail(['the answer was not an object']);
+  const errors = [];
+  if (!Array.isArray(data.items)) errors.push('items must be an array, one entry per food');
+  const items = [];
+  (Array.isArray(data.items) ? data.items.slice(0, MEAL_ITEMS_MAX) : []).forEach((x, i) => {
+    const it = cleanFood(x, i, errors, null);
+    if (!it) return;
+    if (!isStr(x.name)) { errors.push(`item ${i + 1} needs a name`); return; }
+    items.push({ name: clampStr(x.name.trim(), MEAL_NAME_MAX), qty: isStr(x.qty) ? clampStr(x.qty.trim(), MEAL_QTY_MAX) : '', ...it });
+  });
+  if (errors.length) return fail(errors);
+  const note = isStr(data.note) ? clampStr(data.note.trim(), MEAL_NOTE_MAX) : '';
+  return { ok: true, proposal: { items, ...totals(items), adjusted: items.filter(x => x.adjusted).length, ...(note ? { note } : {}) } };
+}
+export function validateMealSuggest(data) {
+  if (!data || typeof data !== 'object') return fail(['the answer was not an object']);
+  const errors = [];
+  if (!Array.isArray(data.meals) || !data.meals.length) errors.push('meals must be an array of three suggestions');
+  const meals = [];
+  (Array.isArray(data.meals) ? data.meals.slice(0, 3) : []).forEach((x, i) => {
+    const it = cleanFood(x, i, errors, 'text', MEAL_TEXT_MAX);
+    if (!it) return;
+    if (!isStr(x.title)) { errors.push(`meal ${i + 1} needs a title`); return; }
+    if (!it.text) { errors.push(`meal ${i + 1} needs its text — the foods and quantities, as it would be logged`); return; }
+    meals.push({ title: clampStr(x.title.trim(), 60), desc: isStr(x.desc) ? clampStr(x.desc.trim(), 200) : '', ...it });
+  });
+  if (errors.length) return fail(errors);
+  const note = isStr(data.note) ? clampStr(data.note.trim(), MEAL_NOTE_MAX) : '';
+  return { ok: true, proposal: { meals, ...(note ? { note } : {}) } };
 }

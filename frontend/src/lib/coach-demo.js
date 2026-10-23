@@ -18,6 +18,8 @@ import { isWarmupRow } from './workout-model.js'
 import { best1RM } from './onerm.js'
 import { fmtNum } from './format.js'
 import { planHash } from './coach.js'
+import * as nutritionLib from './nutrition.js'
+import { todayISO } from './format.js'
 import { t } from './i18n.js'
 
 const DELAY = 2200      // long enough to see "the Coach is thinking…", short enough to forgive
@@ -206,8 +208,45 @@ export const demoDebrief = (S, workoutId) => {
   if (!(S.workouts || []).some(w => w && w.d)) throw Object.assign(new Error(t('There’s no workout to look at yet. Log one first.')), { status: 409, code: 'noworkout' })
   return start('debrief', () => buildDebrief(S, workoutId))
 }
+// A question gets a canned answer built from the demo profile's own numbers, in Markdown, so
+// the chat's rendering and its threads can be seen working on the demo page.
+export const demoAsk = (S, question) => start('chat', () => {
+  const ws = (S.workouts || []).filter(w => w && w.d)
+  const ids = [...new Set(ws.flatMap(w => (w.entries || []).map(e => e.id)))].slice(0, 3)
+  const rows = ids.map(id => {
+    const b = best1RM(S, id)
+    return `| ${EXIDX[id]?.n || id} | ${b ? fmtNum(Math.round(b.est)) + ' ' + S.unit : '–'} |`
+  }).join('\n')
+  const q = String(question || '').trim()
+  return {
+    reply: `**${t('Here is what your log says.')}**\n\n` +
+      t('You have {0} sessions logged, and your best estimated one-rep maxes right now are:', ws.length) + '\n\n' +
+      `| ${t('Exercise')} | ${t('Estimated 1RM')} |\n|---|---|\n${rows}\n\n` +
+      `> ${t('This is the demo: a real Coach reads your whole history and answers the question you actually asked.')}` +
+      (q ? `\n\n_${t('You asked:')} ${q.slice(0, 120)}_` : ''),
+    title: q ? q.slice(0, 40) : t('Demo chat')
+  }
+})
+// A meal, read without a model: the words matched against the anchor table (lib/nutrition.js
+// quickMatch), so the demo logs real USDA numbers for "2 eggs and toast" and says it could not
+// read the rest. A suggestion is three fixed meals, lighter when the day's calories are spent.
+export const demoMeal = (S, meal) => start('meal', () => {
+  if (meal?.suggest) {
+    const { dayTotals, remainingOf } = nutritionLib
+    const rem = remainingOf(S.nutritionTargets, dayTotals(S, todayISO()))
+    const light = rem && rem.cal <= 0
+    const pick = light
+      ? [['Greek yogurt cup', '170 g plain nonfat Greek yogurt', 100, 17, 6, 0.7], ['Cottage cheese bowl', '1 cup 2% cottage cheese', 183, 24, 10.8, 5], ['Tuna on greens', '100 g canned tuna with 2 cups salad greens', 131, 26.9, 2.7, 1.2]]
+      : [['Chicken and rice bowl', '150 g cooked chicken breast with 1 cup cooked white rice', 454, 50.8, 44.5, 5.8], ['Salmon and sweet potato', '150 g cooked salmon with 1 medium baked sweet potato', 415, 32.3, 23.6, 19.7], ['Oats and whey', '40 g dry oats with 1 scoop whey and 1 cup skim milk', 355, 37.6, 42.2, 4.3]]
+    return { meals: pick.map(([title, text, cal, protein, carbs, fat]) => ({ title, desc: light ? t('Protein without the calories.') : t('Fills the protein gap with slow carbs.'), text, cal, protein, carbs, fat, adjusted: false })), ...(light ? { note: t('Today’s calories are already met.') } : {}) }
+  }
+  const { quickMatch } = nutritionLib
+  const { items, unread } = quickMatch(meal?.text || '')
+  const sum = k => Math.round(items.reduce((n, x) => n + x[k], 0) * 10) / 10
+  return { items, cal: Math.round(items.reduce((n, x) => n + x.cal, 0)), protein: sum('protein'), carbs: sum('carbs'), fat: sum('fat'), adjusted: 0, ...(unread.length ? { note: t('Could not read: {0}', unread.join(', ')) } : {}) }
+})
 export const demoResolve = () => { pending = null; return { ok: true } }
 export const demoDisclosure = () => ({
   provider: 'demo', providerLabel: t('the configured AI provider'),
-  categories: ['plan', 'training', 'bodyweight', 'profile', 'prefs'], version: 1
+  categories: ['plan', 'training', 'bodyweight', 'profile', 'prefs', 'nutrition'], version: 1
 })

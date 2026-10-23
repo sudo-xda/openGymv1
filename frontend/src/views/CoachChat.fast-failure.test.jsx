@@ -46,10 +46,10 @@ vi.mock('../lib/api.js', () => ({
       if (mocks.statusGate) { const gate = mocks.statusGate; mocks.statusGate = null; await gate }
       return snap
     }
-    if (opts?.method === 'POST' && /^\/api\/coach\/(review|plan|debrief)$/.test(path)) {
+    if (opts?.method === 'POST' && /^\/api\/coach\/(review|plan|debrief|ask)$/.test(path)) {
       const id = 'job' + (++srv.n)
       srv.used++
-      srv.last = { id, kind: path.endsWith('plan') ? 'create' : 'review', outcome: 'failed', errorClass: 'provider', at: Date.now() }
+      srv.last = { id, kind: path.endsWith('plan') ? 'create' : path.endsWith('ask') ? 'chat' : 'review', outcome: 'failed', errorClass: 'provider', at: Date.now() }
       return { job: { id } }
     }
     return {}
@@ -121,8 +121,8 @@ describe('a Coach run that fails before the first poll', () => {
     expect(container.querySelector('.composer-cap').textContent).toBe('6 of 10 Coach runs used today')
   })
 
-  it('a message asking for a plan gets the error reply', async () => {
-    mocks.S = state([])                                       // no routines: a message asks for a plan
+  it('a typed question gets the error reply', async () => {
+    mocks.S = state([])                                       // a typed message is a question, routines or not
     await mount()
     const ta = container.querySelector('.composer textarea')
     await act(async () => {
@@ -132,7 +132,7 @@ describe('a Coach run that fails before the first poll', () => {
     await click(container.querySelector('.composer .send'))
     expect(mocks.S.coach.chat.at(-2)).toMatchObject({ role: 'user', kind: 'text', text: 'Add more legs please' })
     expect(mocks.S.coach.chat.at(-1)).toMatchObject({ role: 'coach', kind: 'error', text: FAILED })
-    expect(mocks.server.last.kind).toBe('create')
+    expect(mocks.server.last.kind).toBe('chat')
   })
 
   it('the plan the intake asked for, failed before the chat opened, is answered when it opens', async () => {

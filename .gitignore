@@ -30,3 +30,8 @@ frontend/bundle-size.json
 
 # Local planning notes
 docs/superpowers/plans/
+
+# Local, self-contained Android toolchain (JDK + SDK + Gradle caches), see docs/MOBILE.md
+.toolchain/
+.toolchain/android-sdk/.knownPackages
+

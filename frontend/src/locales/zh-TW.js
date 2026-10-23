@@ -2407,4 +2407,6 @@ export default {
   // --- import with no account: workouts on this device ---
   'This device has 1 workout that is not in this backup. Replacing deletes it.': '此裝置上有 1 筆訓練紀錄不在此備份中。覆蓋將會刪除它。',
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': '此裝置上有 {0} 筆訓練紀錄不在此備份中。覆蓋將會將其全數刪除。',
+  'Your nutrition log': '你的營養紀錄',
+  'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': '你用自己的話記錄的餐點及其數字、你的飲水量，以及你的熱量與巨量營養素目標——今天和前一週。',
 }

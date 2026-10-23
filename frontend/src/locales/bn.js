@@ -2493,4 +2493,6 @@ export default {
   // --- import with no account: workouts on this device ---
   'This device has 1 workout that is not in this backup. Replacing deletes it.': 'এই ডিভাইসে ১টি ওয়ার্কআউট আছে যা এই ব্যাকআপে নেই। প্রতিস্থাপন করলে এটি মুছে যাবে।',
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': 'এই ডিভাইসে {0}টি ওয়ার্কআউট আছে যা এই ব্যাকআপে নেই। প্রতিস্থাপন করলে এগুলো মুছে যাবে।',
+  'Your nutrition log': 'আপনার পুষ্টি লগ',
+  'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'আপনার নিজের কথায় লগ করা খাবার ও তার সংখ্যা, আপনার পানি, এবং আপনার ক্যালরি ও ম্যাক্রো লক্ষ্য — আজ এবং তার আগের সপ্তাহ।',
 }

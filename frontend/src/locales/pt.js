@@ -2414,4 +2414,6 @@ export default {
   // --- import with no account: workouts on this device ---
   'This device has 1 workout that is not in this backup. Replacing deletes it.': 'Este dispositivo tem 1 treino que não está nesta cópia. Substituir elimina-o.',
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': 'Este dispositivo tem {0} treinos que não estão nesta cópia. Substituir elimina-os.',
+  'Your nutrition log': 'O teu registo de nutrição',
+  'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'As refeições que registaste, nas tuas palavras e com os seus números, a tua água e as tuas metas de calorias e macros: hoje e a semana anterior.',
 }

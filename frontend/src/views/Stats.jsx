@@ -16,6 +16,7 @@ import { loadOfWeeklyPlan, loadOfWorkouts, muscleBalanceWindow, rankOf, MUSCLES,
 import { fatigueOf, strengthOf, STRENGTH_FLOOR, LB_TO_KG } from '../lib/recovery.js'
 import { strengthExerciseRowsForMuscle } from '../lib/strength-exercises.js'
 import { fatigueStateOf } from '../lib/recovery-view.js'
+import { recoveryScores } from '../lib/recovery-score.js'
 import { e1rmSeries, best1RM, formulaOf } from '../lib/onerm.js'
 import { currentDbLoad, workoutAs } from '../lib/dumbbells.js'
 import { maxRepsSeries } from '../lib/pyramid.js'
@@ -122,6 +123,42 @@ function profileBodyweightKg(S) {
   const last = entries.slice().sort((a, b) => String(a.d).localeCompare(String(b.d))).at(-1)
   if (!last || !(last.w > 0)) return null
   return S.unit === 'lb' ? last.w * LB_TO_KG : last.w
+}
+
+/**
+ * Muscle recovery: every muscle the map can show as a recovery percentage, from the same fatigue
+ * model the Fatigue map draws (lib/recovery.js, read by lib/recovery-score.js), so a muscle the
+ * map calls fatigued is the same one this card puts at the top. Ready to train is green,
+ * recovering yellow, fatigued orange — the three states the map's legend names.
+ */
+const RECOVERY_COLOR = { ready: 'var(--green)', recovering: 'var(--yellow)', fatigued: 'var(--orange)' }
+const recoveryWord = state => state === 'ready' ? t('Ready to train') : state === 'recovering' ? t('Recovering') : t('Fatigued')
+function RecoveryCard({ S }) {
+  const now = useNow()
+  const [open, setOpen] = useState(false)
+  const bodyweightKg = useMemo(() => profileBodyweightKg(S), [S.bodyweight, S.unit])
+  const fatigue = useMemo(() => fatigueOf(S.workouts, now, { bodyweightKg, unit: S.unit }), [S.workouts, now, bodyweightKg, S.unit])
+  const { rows, counts } = useMemo(() => recoveryScores(fatigue), [fatigue])
+  const shown = open ? rows : rows.slice(0, 6)
+  const overall = Math.round(rows.reduce((n, r) => n + r.pct, 0) / rows.length)
+  return <div className="card" data-recovery-card>
+    <div className="row between" style={{ marginBottom: 6 }}>
+      <h2 style={{ margin: 0 }}>{t('Muscle recovery')}</h2>
+      <span className="small" style={{ color: 'var(--label-2)' }}>{t('{0}% overall', overall)}</span>
+    </div>
+    <div className="rec-sum">
+      {['ready', 'recovering', 'fatigued'].map(state => <span key={state} className="rec-pill" style={{ '--c': RECOVERY_COLOR[state] }}>
+        <i /><b>{counts[state]}</b> {recoveryWord(state)}
+      </span>)}
+    </div>
+    {shown.map(r => <div key={r.slug} className="mrow rec-row" data-recovery-muscle={r.slug}>
+      <span className="nm">{t(MUSCLE_NAME[r.slug])}</span>
+      <span className="bar rec-bar"><i style={{ width: r.pct + '%', background: RECOVERY_COLOR[r.state] }} /></span>
+      <span className="v" style={{ color: RECOVERY_COLOR[r.state], minWidth: 44 }}>{r.pct}%</span>
+    </div>)}
+    <button type="button" className="rec-more" onClick={() => setOpen(o => !o)}>{open ? t('Show fewer') : t('All {0} muscles', rows.length)}</button>
+    <div className="muted small" style={{ marginTop: 6 }}>{t('From the load, the effort and the recovery half-life of each muscle. Green is ready for another hard session.')}</div>
+  </div>
 }
 
 function MuscleBalance({ S }) {
@@ -660,6 +697,7 @@ export default function Stats() {
       />
     </div>
 
+    {workouts.length > 0 && <RecoveryCard S={S} />}
     {(workouts.length > 0 || Object.keys(loadOfWeeklyPlan(S)).length > 0) && <MuscleBalance S={S} />}
     {S.routines.length > 0 && <WeeklyPlanVolume S={S} />}
     {workouts.length > 0 && <div className="card row between" style={{ alignItems: 'center', gap: 12 }}>

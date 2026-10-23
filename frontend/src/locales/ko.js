@@ -2414,4 +2414,6 @@ export default {
   // --- import with no account: workouts on this device ---
   'This device has 1 workout that is not in this backup. Replacing deletes it.': '이 기기에 이 백업에 없는 운동이 1개 있습니다. 바꾸면 삭제됩니다.',
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': '이 기기에 이 백업에 없는 운동이 {0}개 있습니다. 바꾸면 삭제됩니다.',
+  'Your nutrition log': '영양 기록',
+  'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': '직접 적은 식사와 그 수치, 물 섭취량, 칼로리와 매크로 목표 — 오늘과 지난 한 주.',
 }

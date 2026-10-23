@@ -111,4 +111,38 @@ export const DEBRIEF_SCHEMA = {
   required: ['coach_contract', 'summary', 'score']
 };
 
-export const SCHEMAS = { review: REVIEW_SCHEMA, create: CREATE_SCHEMA, refine: CREATE_SCHEMA, debrief: DEBRIEF_SCHEMA };
+// A freeform answer: one Markdown string and a short title for the thread. Nothing in it is
+// ever applied to a plan, so the shape is the whole contract and validate.js only bounds it.
+export const CHAT_SCHEMA = {
+  type: 'object',
+  properties: {
+    coach_contract: { type: 'integer' },
+    reply: STR,
+    title: STR
+  },
+  required: ['coach_contract', 'reply']
+};
+
+// A meal as items, and three suggested meals: numbers the validator cross-checks (calories
+// against the macros) and adds up itself — the model's own totals are never read.
+const NUM = { type: 'number' };
+export const MEAL_SCHEMA = {
+  type: 'object',
+  properties: {
+    coach_contract: { type: 'integer' },
+    items: { type: 'array', maxItems: 20, items: { type: 'object', properties: { name: STR, qty: STR, cal: NUM, protein: NUM, carbs: NUM, fat: NUM }, required: ['name', 'cal', 'protein', 'carbs', 'fat'] } },
+    note: STR
+  },
+  required: ['coach_contract', 'items']
+};
+export const MEAL_SUGGEST_SCHEMA = {
+  type: 'object',
+  properties: {
+    coach_contract: { type: 'integer' },
+    meals: { type: 'array', maxItems: 3, items: { type: 'object', properties: { title: STR, desc: STR, text: STR, cal: NUM, protein: NUM, carbs: NUM, fat: NUM }, required: ['title', 'text', 'cal', 'protein', 'carbs', 'fat'] } },
+    note: STR
+  },
+  required: ['coach_contract', 'meals']
+};
+
+export const SCHEMAS = { review: REVIEW_SCHEMA, create: CREATE_SCHEMA, refine: CREATE_SCHEMA, debrief: DEBRIEF_SCHEMA, chat: CHAT_SCHEMA, meal: MEAL_SCHEMA, mealsuggest: MEAL_SUGGEST_SCHEMA };
