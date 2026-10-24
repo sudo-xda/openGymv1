@@ -289,3 +289,27 @@ describe('story and square formats', () => {
     expect(auto.height).not.toBe(1920)
   })
 })
+
+describe('the Coach\'s verdict on the card', () => {
+  const nameOf = e => e.id
+  const w = { id: 'w3', d: '2026-10-23', start: 0, end: 30 * 60000, name: 'Pull', vol: 500, prs: [], entries: [{ id: 'row', target: { mode: 'reps' }, sets: [{ w: 50, r: 10, done: true }] }] }
+  it('the model carries a clamped score and a tidied summary, or nothing', () => {
+    expect(workoutCardModel(w, { unit: 'kg', nameOf, ai: { score: 12.4, summary: '  Solid   session.\nKeep going. ' } }).ai).toEqual({ score: 10, summary: 'Solid session. Keep going.' })
+    expect(workoutCardModel(w, { unit: 'kg', nameOf, ai: { score: 'x' } }).ai).toBeNull()
+    expect(workoutCardModel(w, { unit: 'kg', nameOf }).ai).toBeNull()
+  })
+  it('lays the score pill under the date and the summary in at most three lines, in every format', () => {
+    const model = { ...workoutCardModel(w, { unit: 'kg', nameOf, ai: { score: 8, summary: 'word '.repeat(80) } }), date: 'Fri' }
+    for (const format of ['auto', 'story', 'square']) {
+      const layout = layoutWorkoutCard(model, { measure, format })
+      const pill = layout.items.find(i => i.kind === 'badge' && i.soft)
+      const date = layout.items.find(i => i.text === 'Fri')
+      expect(pill.text).toBe('Coach · 8/10')
+      expect(pill.y).toBeGreaterThan(date.y)
+      const lines = layout.items.filter(i => i.kind === 'text' && i.size === 34 && i.weight === 400)
+      expect(lines.length).toBe(3)
+      expect(lines[2].text.endsWith('…')).toBe(true)
+      for (const item of layout.items) expect(item.y).toBeLessThanOrEqual(layout.height)
+    }
+  })
+})

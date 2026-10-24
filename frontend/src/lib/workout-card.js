@@ -38,7 +38,7 @@ const MAP_MAX_HEIGHT = 560
  * summary's muscle map for this one session (levelsOf over loadOfWorkouts), null when no set
  * reached a muscle the map can show — a card of only cardio has nothing to shade.
  */
-export function workoutCardModel(w, { unit, nameOf }) {
+export function workoutCardModel(w, { unit, nameOf, ai = null }) {
   const entries = w.entries || []
   const sets = entries.reduce((n, e) => n + (e.sets || []).reduce((m, s) => m + (isWarmupRow(s) ? 0 : doneUnits(s)), 0), 0)
   // New bests in the order the sheet lists the exercises, each named once — a combined session
@@ -67,6 +67,9 @@ export function workoutCardModel(w, { unit, nameOf }) {
     date: day ? fmtDate(day, true, true) : '',
     prCount: records.length,
     topLifts,
+    // The Coach's verdict, when the session has a debrief (lib/coach.js debriefFor): the score
+    // out of ten and its summary sentence, so the card says how it went, not only what it was.
+    ai: ai && Number.isFinite(Number(ai.score)) ? { score: Math.max(1, Math.min(10, Math.round(Number(ai.score)))), summary: String(ai.summary || '').replace(/\s+/g, ' ').trim() } : null,
     // Imported history has no clock: an unknown duration is left out rather than shown as 0.
     stats: [
       ...(ms >= 60000 ? [{ label: t('Duration'), value: fmtDur(ms) }] : []),
@@ -167,6 +170,17 @@ function flowCard(model, { measure, rtl, width, map, lifts, records: maxRecords,
   y += 10 + 52
   for (const line of wrapText(model.title, inner, s => measure(s, 700, 76), TITLE_LINES)) text(line, 76, 700, 'label')
   if (model.date) { y += 4; text(model.date, 38, 400, 'label2') }
+
+  // The Coach's verdict under the date: a soft pill with the score, then the summary, three
+  // lines at most. A card without a debrief has neither and nothing moves.
+  if (model.ai) {
+    y += 22
+    const label = `${t('Coach')} · ${model.ai.score}/10`
+    const pw = Math.round(measure(label, 700, 30) + 44)
+    items.push({ kind: 'badge', soft: true, text: label, x: rtl ? start - pw : start, y, w: pw, h: 50, size: 30 })
+    y += 50 + 14
+    for (const line of wrapText(model.ai.summary, inner, s => measure(s, 400, 34), 3)) text(line, 34, 400, 'label')
+  }
 
   // The numbers as tiles, the way the finish summary shows them.
   y += 36
@@ -354,10 +368,11 @@ export function drawWorkoutCard(ctx, layout, colors, map = null, family = CARD_F
       roundRect(ctx, Math.min(item.x, item.x + item.w), item.y, Math.abs(item.w), item.h, item.h / 2)
       ctx.fill()
     } else if (item.kind === 'badge') {
-      ctx.fillStyle = colors.acc
+      // Solid accent for the PR badge; a soft tint with accent text for the Coach's score.
+      ctx.fillStyle = item.soft ? mixColor(colors.acc, colors.surface, 0.18) : colors.acc
       roundRect(ctx, item.x, item.y, item.w, item.h, item.h / 2)
       ctx.fill()
-      ctx.fillStyle = colors.bg
+      ctx.fillStyle = item.soft ? colors.acc : colors.bg
       ctx.font = `700 ${item.size}px ${family}`
       ctx.textAlign = 'center'
       ctx.direction = 'ltr'

@@ -7,7 +7,8 @@ import { lastBW, streakWeeks, setLabel, modeOf, effortOf, entriesForExercise, me
 import { fmtNum, fmtDate, fmtVol, todayISO, isoOf, weekKey, weekStartOf, exerciseNameText } from '../lib/format.js'
 import { speedUnitOf, speedLabel, toSpeed } from '../lib/speed.js'
 import { t, exerciseNameFor, exerciseNameClass, getLang } from '../lib/i18n.js'
-import { bwSheet, goalSheet, calendarSheet, dayOverrideSheet, workoutDetailSheet, exerciseHistorySheet, WorkoutRow, bwDeltaColor, weighInsSheet } from '../sheets.jsx'
+import { bwSheet, goalSheet, calendarSheet, dayOverrideSheet, workoutDetailSheet, exerciseHistorySheet, WorkoutRow, bwDeltaColor, weighInsSheet, debriefSheet } from '../sheets.jsx'
+import { debriefs } from '../lib/coach.js'
 import LineChart from '../components/LineChart.jsx'
 import Heatmap from '../components/Heatmap.jsx'
 import Icon from '../components/Icon.jsx'
@@ -123,6 +124,34 @@ function profileBodyweightKg(S) {
   const last = entries.slice().sort((a, b) => String(a.d).localeCompare(String(b.d))).at(-1)
   if (!last || !(last.w > 0)) return null
   return S.unit === 'lb' ? last.w * LB_TO_KG : last.w
+}
+
+/**
+ * The Coach's workout summaries, newest first: the score, the session and its sentence; a tap
+ * opens the whole reading. Written automatically as a workout ends (sheets.jsx AutoDebrief) or
+ * asked for in the chat; kept in the Coach's log (lib/coach.js debriefs).
+ */
+function SummariesCard({ S }) {
+  const [open, setOpen] = useState(false)
+  const all = useMemo(() => debriefs(S), [S.coach?.log])
+  if (!all.length) return null
+  const shown = open ? all : all.slice(0, 3)
+  const avg = Math.round(all.filter(e => Number.isFinite(e.score)).reduce((n, e) => n + e.score, 0) / Math.max(1, all.filter(e => Number.isFinite(e.score)).length) * 10) / 10
+  return <div className="card" data-summaries-card>
+    <div className="row between" style={{ marginBottom: 6 }}>
+      <h2 style={{ margin: 0 }}>{t('AI workout summaries')}</h2>
+      <span className="small" style={{ color: 'var(--label-2)' }}>{t('avg {0}/10', fmtNum(avg))}</span>
+    </div>
+    {shown.map(e => <button key={e.id} type="button" className="verdict" onClick={() => debriefSheet(e)} data-summary={e.id}>
+      <span className="deb-ring sm" style={{ '--pct': (e.score || 0) / 10 }}><span>{e.score ?? '–'}</span></span>
+      <span className="grow">
+        <span className="verdict-h">{e.workout?.name || t('Workout')} <span className="dim">· {e.workout?.d ? fmtDate(e.workout.d) : fmtDate(isoOf(new Date(e.at)))}</span></span>
+        <span className="verdict-s">{e.summary}</span>
+      </span>
+      <Icon name="chevronRight" className="chev" />
+    </button>)}
+    {all.length > 3 && <button type="button" className="rec-more" onClick={() => setOpen(o => !o)}>{open ? t('Show fewer') : t('All {0} summaries', all.length)}</button>}
+  </div>
 }
 
 /**
@@ -697,6 +726,7 @@ export default function Stats() {
       />
     </div>
 
+    <SummariesCard S={S} />
     {workouts.length > 0 && <RecoveryCard S={S} />}
     {(workouts.length > 0 || Object.keys(loadOfWeeklyPlan(S)).length > 0) && <MuscleBalance S={S} />}
     {S.routines.length > 0 && <WeeklyPlanVolume S={S} />}

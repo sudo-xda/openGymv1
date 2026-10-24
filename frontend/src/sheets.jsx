@@ -67,7 +67,7 @@ import { workoutText } from './lib/workout-text.js'
 import { workoutCardModel, layoutWorkoutCard, drawWorkoutCard, viewAspect, CARD_FONT, FORMATS } from './lib/workout-card.js'
 import DebriefSummary from './components/DebriefSummary.jsx'
 import { useCoachStatus, requestDebrief, resolvePending, settleAwaited, disclosure, coachVia } from './lib/coach-api.js'
-import { hasConsent, recordDebrief, appendChat, emptyCoach } from './lib/coach.js'
+import { hasConsent, recordDebrief, appendChat, emptyCoach, debriefFor } from './lib/coach.js'
 import { useCoachGate } from './lib/use-coach-gate.js'
 import { DEMO } from './lib/demo.js'
 import { copyText } from './lib/clipboard.js'
@@ -2709,6 +2709,9 @@ function WorkoutDetail({ w, close }) {
         {entryRows(g.units)}
       </div>
     }) : entryRows(groups[0]?.units || [])}
+    {/* The Coach's summary of this session, when one was written (sheets.jsx AutoDebrief, or asked
+        for in the chat): the score and its sentence here, the whole reading a tap away. */}
+    <WorkoutVerdict w={w} />
     {/* Progress photos and form-check videos: added and removed right here, on the saved record. */}
     <WorkoutMediaSection w={w} />
     <div className="small muted" style={{ margin: '4px 0 6px' }}>{t('Session note')}</div>
@@ -2783,7 +2786,9 @@ function ShareWorkoutImage({ w, nameOf, close }) {
   // Which shape: the card as tall as it needs to be, a 9:16 story or a 1:1 square (#share-card).
   // Remembered with the profile, like the map toggle.
   const format = FORMATS[st.shareFormat] ? st.shareFormat : 'auto'
-  const model = useMemo(() => workoutCardModel(w, { unit: st.unit, nameOf }), [w, st.unit])
+  // The Coach's verdict rides on the card when the session has one (the automatic summary).
+  const verdict = debriefFor(st, w)
+  const model = useMemo(() => workoutCardModel(w, { unit: st.unit, nameOf, ai: verdict }), [w, st.unit, verdict?.id])
   // The last picture stays up while the next one is drawn, so the toggle never blanks the sheet.
   const [img, setImg] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -2875,6 +2880,33 @@ function mediaGoesToo(rec) {
   return n ? ' ' + tn('Its photo or video is deleted with it.', 'Its {0} photos or videos are deleted with it.', n) : ''
 }
 export const workoutDetailSheet = w => ui().openSheet(close => <WorkoutDetail w={w} close={close} />)
+/** A kept debrief, whole: the score, the numbers and the three lists (Stats' summaries, History). */
+export const debriefSheet = entry => ui().openSheet(() => <DebriefSheet entry={entry} />)
+function DebriefSheet({ entry }) {
+  const st = useStore(s => s.S)
+  return <div className="pdetail">
+    <div className="pcard-hd" style={{ paddingInline: 0 }}>
+      <div className="pcard-eyebrow">{t('AI workout summary')} · {fmtDate(isoOf(new Date(entry.at)))}</div>
+      <h2 className="pcard-h">{entry.workout?.name || t('Workout')}</h2>
+      {!!entry.summary && <p className="pcard-sum">{entry.summary}</p>}
+    </div>
+    <DebriefSummary p={entry} S={st} />
+    <div style={{ height: 10 }} />
+  </div>
+}
+function WorkoutVerdict({ w }) {
+  const st = useStore(s => s.S)
+  const entry = debriefFor(st, w)
+  if (!entry) return null
+  return <button type="button" className="verdict" onClick={() => debriefSheet(entry)}>
+    <span className="deb-ring sm" style={{ '--pct': (entry.score || 0) / 10 }}><span>{entry.score ?? '–'}</span></span>
+    <span className="grow">
+      <span className="verdict-h"><Icon name="sparkles" />{t('AI workout summary')}</span>
+      <span className="verdict-s">{entry.summary}</span>
+    </span>
+    <Icon name="chevronRight" className="chev" />
+  </button>
+}
 
 /* ============================ calendar ============================ */
 function Calendar({ start, close }) {

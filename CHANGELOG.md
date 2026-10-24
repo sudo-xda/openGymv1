@@ -17,6 +17,9 @@ The Coach learns to talk, and to write up every workout by itself.
   model, a greeting with this week's volume, sessions, streak and body weight, and starter
   questions in four groups: Workouts, Nutrition, Progress, Technique. A phone that brought its
   own API key and lost it is asked for it right there, in a small modal.
+- **Summaries you can come back to.** Every AI workout summary is listed in Stats with its score
+  and opens whole; a past workout's sheet shows its summary too; and the share card carries the
+  Coach's score and sentence once the summary has been written.
 - **AI workout summary.** Finish a workout and the Coach's debrief is written at once, under the
   finish summary: the score, what went well, what to watch, what to do next time — read against
   the same routine's earlier sessions and your all-time bests, not just last week. Kept in the

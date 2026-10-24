@@ -12,7 +12,7 @@
 // proposal — every change, accepted or not, the notes, the evidence — is kept, so saying yes
 // or no never makes it disappear. Turning the Coach off is the admin's decision, not a control
 // on this screen.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { closeThenNav } from '../lib/nav.js'
 import { useStore } from '../store/useStore.js'
@@ -276,7 +276,11 @@ export default function CoachChat() {
     <div className="msgs">
       {!messages.length && !job && !pending && <Welcome S={S} user={user} onAsk={askText} jobs={{ askReview, askDebrief, askNewPlan, lastWorkout }} />}
 
-      {messages.map(m => <Message key={m.id} m={m} S={S} profile={coach.profile} openSheet={openSheet} onCopy={copy} onRegenerate={m.md && idle && !busy ? regenerate : null} />)}
+      {messages.map((m, i) => <Fragment key={m.id}>
+        {dayLabel(m.at, messages[i - 1]?.at) && <div className="msg-day"><span>{dayLabel(m.at, messages[i - 1]?.at)}</span></div>}
+        <Message m={m} S={S} profile={coach.profile} openSheet={openSheet} onCopy={copy} onRegenerate={m.md && idle && !busy ? regenerate : null}
+          first={!messages[i - 1] || messages[i - 1].role !== m.role} />
+      </Fragment>)}
 
       {job && <Typing S={S} kind={job.kind} coachLocal={coachLocal} config={config} />}
 
@@ -471,19 +475,32 @@ function AutoDebriefRow() {
 
 /* ---------------------------------- bubbles ---------------------------------- */
 
-function Bubble({ role, kind, at, md, children, actions }) {
+// A separator when the day changes between two lines: Today, Yesterday, or the date.
+const dayLabel = (at, prevAt) => {
+  if (!at) return null
+  const day = d => new Date(d).toDateString()
+  if (prevAt && day(at) === day(prevAt)) return null
+  const today = new Date()
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
+  if (day(at) === today.toDateString()) return t('Today')
+  if (day(at) === yesterday.toDateString()) return t('Yesterday')
+  return fmtDate(isoOf(new Date(at)), true)
+}
+
+function Bubble({ role, kind, at, md, children, actions, first = true }) {
   const cls = (kind === 'error' ? ' err' : '') + (md ? ' md-bub' : '')
-  return <div className={'msg ' + role}>
+  return <div className={'msg ' + role + (first ? ' first' : '')}>
+    {role === 'coach' && first && <span className="msg-av" aria-hidden="true"><Icon name="sparkles" /></span>}
     <div className={'bub' + cls}>{children}</div>
     {actions}
     {at && <div className="msg-t">{stamp(at)}</div>}
   </div>
 }
 
-function Message({ m, S, profile, openSheet, onCopy, onRegenerate }) {
+function Message({ m, S, profile, openSheet, onCopy, onRegenerate, first }) {
   if (m.kind === 'intake') {
     const lines = profileLines(profile)
-    return <Bubble role="user" at={m.at}>
+    return <Bubble role="user" at={m.at} first={first}>
       {t('Here is what I am working with:')}
       <ul>{lines.map((l, i) => <li key={i}>{l}</li>)}</ul>
     </Bubble>
@@ -503,7 +520,7 @@ function Message({ m, S, profile, openSheet, onCopy, onRegenerate }) {
         {onRegenerate && <button onClick={() => onRegenerate(m)}><Icon name="repeat" />{t('Regenerate')}</button>}
       </div>
       : null
-    return <Bubble role={m.role} kind={m.kind} at={m.at} md={!!m.md} actions={actions}>{m.md ? <Markdown text={m.text} /> : m.text}</Bubble>
+    return <Bubble role={m.role} kind={m.kind} at={m.at} md={!!m.md} actions={actions} first={first}>{m.md ? <Markdown text={m.text} /> : m.text}</Bubble>
   }
   return null
 }

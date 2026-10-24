@@ -612,6 +612,14 @@ export function recordDebrief(s, proposal) {
   })
 }
 
+/** The Coach's debriefs, newest first — every workout summary ever kept. */
+export const debriefs = S => [...(S?.coach?.log || [])].filter(e => e && e.kind === 'debrief').reverse()
+/** The latest debrief of one workout, by id, else by day and name; null when it has none. */
+export function debriefFor(S, w) {
+  if (!w) return null
+  return debriefs(S).find(e => e.workout && ((w.id != null && e.workout.id === w.id) || (e.workout.d === w.d && (e.workout.name || null) === (w.name || null)))) || null
+}
+
 /* ============================ display helpers ============================ */
 
 export const exName = id => EXIDX[id]?.n || t('Unknown exercise')
