@@ -97,19 +97,22 @@ const send = async text => {
 }
 const chip = re => [...host.querySelectorAll('button')].find(b => re.test(b.textContent || ''))
 
+// Since the chat answers in one call, a refusal of a typed message is the Coach's error line in
+// the thread (the message stays above it); a quick action still toasts.
 describe('a request the server refuses', () => {
   it('from the composer, toasts the app\'s line for its class, not the server\'s English', async () => {
     vi.mocked(requestAsk).mockRejectedValueOnce(refusal('the Coach is already thinking about your training', 'busy'))
     mount()
     await send('x')
-    expect(mocks.toast).toHaveBeenCalledWith('the app’s busy line')
+    expect(mocks.toast).not.toHaveBeenCalled()
+    expect(mocks.S.coach.chat.at(-1)).toMatchObject({ role: 'coach', kind: 'error', text: 'the app’s busy line' })
   })
 
   it('whose class has no line of its own keeps the server\'s words', async () => {
     vi.mocked(requestAsk).mockRejectedValueOnce(refusal('this Coach account is shared; ask the owner', 'shared'))
     mount()
     await send('x')
-    expect(mocks.toast).toHaveBeenCalledWith('this Coach account is shared; ask the owner')
+    expect(mocks.S.coach.chat.at(-1)).toMatchObject({ kind: 'error', text: 'this Coach account is shared; ask the owner' })
   })
 
   it('from a quick action, toasts the app\'s line for its class too', async () => {
@@ -123,7 +126,7 @@ describe('a request the server refuses', () => {
     vi.mocked(requestAsk).mockRejectedValueOnce(new Error('Network unreachable'))
     mount()
     await send('x')
-    expect(mocks.toast).toHaveBeenCalledWith('Network unreachable')
+    expect(mocks.S.coach.chat.at(-1)).toMatchObject({ kind: 'error', text: 'Network unreachable' })
   })
 
   it('"Not now" on the data-sharing question is an answer: no toast, no chat line, the text stays', async () => {

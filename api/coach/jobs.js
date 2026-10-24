@@ -23,6 +23,7 @@ import { runPipeline } from './core/pipeline.js';
 import { extractJSON } from './core/parse.js';
 import { hashPlan } from './core/plan-hash.js';
 import { buildPrompt } from './core/prompt.js';
+import * as chatCore from './core/chat.js';
 import { handleFor } from './handle.js';
 import { fetchFor } from './node-fetch.js';
 import { privilegeRefusal, unprivilegedIds } from './adapters/spawn.js';
@@ -531,4 +532,65 @@ export function recoverOnBoot() {
   } catch { /* no coach dir yet */ }
   if (n) console.log(`coach: cleared ${n} job(s) interrupted by restart`);
   return n;
+}
+
+/* ---------- the chat: one round trip, no queue ----------
+   The same gate as enqueue (on, consent, whose account, the privilege drop), the same daily cap,
+   then the provider is called here and now with the chat prompt (core/chat.js) and the answer
+   returned to the request. Only one call at a time per profile, shared with the queue: a chat
+   while a plan is being built waits its turn, as the person would expect. */
+export const CHAT_TIMEOUT_MS = chatCore.CHAT_TIMEOUT_MS;
+export async function askNow(uid, opts = {}) {
+  if (!cfgStore.isEnabled() || !cfgStore.isConnected()) throw new CoachError('off', 'the Coach is not set up on this instance');
+  if (inflight.has(uid)) throw new CoachError('busy', 'the Coach is already thinking about your training');
+  const S = readState(uid);
+  if (!S?.coach?.consent?.agreedAt) throw new CoachError('consent', 'the Coach needs your go-ahead first');
+  const cred = cfgStore.credentialFor(uid);
+  if (!cred.ok) {
+    if (cred.reason === 'shared-account') throw new CoachError('shared', cred.message);
+    throw new CoachError('off', 'this profile has no provider account connected');
+  }
+  const cfg = cfgStore.load();
+  const adapter = adapterFor(cfg.provider);
+  if (!adapter) throw new CoachError('off', 'the Coach is not set up on this instance');
+  const refusal = privilegeRefusal(adapter);
+  if (refusal) throw new CoachError('unprivileged', refusal);
+  const caps = cfg.caps || {};
+  const { used, limit } = capState(uid);
+  if (limit > 0 && used >= limit) throw new CoachError('cap', 'daily limit reached');
+  if (caps.instanceDaily > 0 && instanceUsedToday() >= caps.instanceDaily) throw new CoachError('cap', 'this instance has reached its daily limit');
+  const question = clampMessage(opts.question);
+  if (!question || !question.trim()) throw new CoachError('noquestion', 'question is required');
+  cfgStore.bindInstanceCredential(uid);
+  bumpDaily(uid);
+  bumpInstanceDaily();
+
+  const { system, user } = chatCore.buildChat(S, {
+    handle: handleFor(uid), question, conversation: opts.conversation,
+    lang: payloadLib.langTag(opts.lang) || (S.langAuto === true ? payloadLib.langTag(process.env.DEFAULT_LANG) : null) || S.lang
+  });
+  const jobDir = adapter.spawns === false ? null : fs.mkdtempSync(path.join(os.tmpdir(), 'coach-'));
+  const env = cfgStore.jobEnv(jobDir || os.tmpdir(), cred);
+  const startedAt = Date.now();
+  inflight.add(uid);
+  try {
+    const ids = jobDir && unprivilegedIds();
+    if (ids) shareJobDir(jobDir, ids);
+    const split = adapter.spawns === false;
+    const r = await adapter.invoke({
+      cfg, model: cfgStore.modelFor(cfg), timeoutMs: CHAT_TIMEOUT_MS, jobDir, env,
+      fetch: fetchFor(CHAT_TIMEOUT_MS), maxTokens: chatCore.CHAT_MAX_TOKENS, plain: true,
+      prompt: split ? user : system + '\n\n---\n\n' + user,
+      ...(split ? { system } : {})
+    });
+    const outcome = r.timedOut ? 'timeout' : r.spawnError ? 'missing' : r.code !== 0 ? (/auth|unauthor|api key|credential|token|401|403|login/i.test(r.stderr || r.text || '') ? 'auth' : 'provider') : null;
+    const reply = outcome ? '' : chatCore.cleanReply(r.text);
+    const errorClass = outcome || (reply ? null : 'unusable');
+    cfgStore.logJob({ at: new Date().toISOString(), uid, kind: 'chat', trigger: 'manual', outcome: errorClass ? 'failed' : 'ready', errorClass, ms: Date.now() - startedAt, detail: errorClass ? (r.stderr || '').slice(0, 300) || null : null });
+    if (errorClass) throw new CoachError(errorClass, errorClass === 'auth' ? 'the Coach could not sign in to its provider' : errorClass === 'timeout' ? 'the Coach took too long' : 'the Coach could not answer');
+    return { reply, ms: Date.now() - startedAt };
+  } finally {
+    inflight.delete(uid);
+    if (jobDir) removeJobDir(jobDir, unprivilegedIds());
+  }
 }

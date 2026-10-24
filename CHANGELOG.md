@@ -4,7 +4,7 @@
 
 The Coach learns to talk, and to write up every workout by itself.
 
-- **Ask the Coach anything.** The chat takes a plain question now — "how is my bench going",
+- **Ask the Coach anything.** The chat answers in one call, in seconds, like a chat should: a short coaching persona and a compact snapshot of your training and food, words back, no queue. It takes a plain question now — "how is my bench going",
   "how much protein for my goal", "cues for a better squat" — and answers in prose from your
   whole log: the recent sessions set by set, the stall picture, your body weight, and a summary
   of everything you have ever logged (how long, how often, every lift's first and best). Answers

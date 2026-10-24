@@ -210,7 +210,12 @@ export const demoDebrief = (S, workoutId) => {
 }
 // A question gets a canned answer built from the demo profile's own numbers, in Markdown, so
 // the chat's rendering and its threads can be seen working on the demo page.
-export const demoAsk = (S, question) => start('chat', () => {
+export const demoAsk = async (S, question) => {
+  // A beat of "typing", then the answer in the same call, as the real chat answers.
+  await new Promise(r => setTimeout(r, 700))
+  return { reply: demoReply(S, question).reply }
+}
+const demoReply = (S, question) => {
   const ws = (S.workouts || []).filter(w => w && w.d)
   const ids = [...new Set(ws.flatMap(w => (w.entries || []).map(e => e.id)))].slice(0, 3)
   const rows = ids.map(id => {
@@ -226,7 +231,7 @@ export const demoAsk = (S, question) => start('chat', () => {
       (q ? `\n\n_${t('You asked:')} ${q.slice(0, 120)}_` : ''),
     title: q ? q.slice(0, 40) : t('Demo chat')
   }
-})
+}
 // A meal, read without a model: the words matched against the anchor table (lib/nutrition.js
 // quickMatch), so the demo logs real USDA numbers for "2 eggs and toast" and says it could not
 // read the rest. A suggestion is three fixed meals, lighter when the day's calories are spent.

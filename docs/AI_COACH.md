@@ -196,13 +196,19 @@ validator rather than trimmed. The card is kept in the Coach's history like ever
 ### Asking a question
 
 Anything typed into the chat that is not a reply to a plan being revised is a **question**, and
-the Coach answers it in prose: a `chat` job (`POST /api/coach/ask`). It reads the same things a
-review reads — the recent sessions (the last one set by set), the stall picture, the body-weight
-series — plus `career`, a bounded summary of the whole log: sessions, weeks, sessions per week
-lately, total PRs, and for a dozen lifts where each started, its best ever and its best estimated
-one-rep max. The answer is Markdown (headings, lists, tables, callouts) rendered by the app's own
-reader, never as HTML, and it is not a proposal: nothing in it can be applied. If the question
-amounts to "change my plan", the Coach says what it would change and points at a review.
+it is answered as a conversation, not as a job: one call to `POST /api/coach/ask`, the reply in
+the response, usually within a few seconds. The provider gets a short coaching persona (how to
+talk, where the lines are) instead of the plan engine's rulebook, and a compact **snapshot** in
+place of the full payload: the career in numbers, this week, the last three sessions one line
+per exercise, body weight, the nutrition log, the plan's shape, the name you set, and the thread
+so far. It answers in words with light Markdown — no JSON mode, no validator, a short output cap
+— and the app renders it through its own Markdown reader. A plan, a review, a debrief and a meal
+stay jobs: they need the rulebook, the full payload and the validator; a chat message does not.
+
+The boundary is the same. The snapshot is an allowlist built from the same bounded readers the
+payload uses, the account name never goes, your words are data, and the daily cap counts a chat
+like any other run. A chat waits while a job is running for the profile (409 `busy`). With a
+reasoning model configured the chat is as slow as the model; a fast model suits it better.
 
 Questions live in **threads**. The drawer (the list button in the chat's header) shows every
 conversation under Today, Yesterday, Previous 7 days and Older, with search; a chat can be

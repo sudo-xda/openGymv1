@@ -17,6 +17,7 @@
 //     riding into a backup or a sync.
 import * as payloadLib from '../../../api/coach/core/payload.js'
 import { runPipeline } from '../../../api/coach/core/pipeline.js'
+import { buildChat, cleanReply, CHAT_MAX_TOKENS, CHAT_TIMEOUT_MS } from '../../../api/coach/core/chat.js'
 import { HTTP_PROVIDERS, baseUrlFor } from '../../../api/coach/core/providers.js'
 import anthropic from '../../../api/coach/core/adapters/anthropic.js'
 import openai from '../../../api/coach/core/adapters/openai.js'
@@ -97,7 +98,31 @@ export const localRefine = async (S, text) => {
 }
 export const localDebrief = (S, workoutId) => start(S, 'debrief', { workoutId: workoutId || null })
 export const localMeal = (S, meal) => start(S, 'meal', { meal: meal?.suggest ? { suggest: true } : { text: String(meal?.text || '').slice(0, 500) } })
-export const localAsk = (S, question, conversation) => start(S, 'chat', { question: String(question || '').slice(0, 1000), conversation: Array.isArray(conversation) ? conversation : [] })
+// The chat is one call, answered here and now (api/coach/core/chat.js), the way the server's
+// askNow does it: the persona, the snapshot, plain text back. It counts against the local cap
+// and waits while a job runs, like any other request.
+export async function localAsk(S, question, conversation) {
+  if (job) throw Object.assign(new Error(t('The Coach is already thinking about your training.')), { status: 409, code: 'busy' })
+  if (!S?.coach?.consent?.agreedAt) throw Object.assign(new Error(t('The Coach needs your go-ahead first.')), { status: 403, code: 'consent' })
+  const d = await loadCoachDevice()
+  const adapter = ADAPTERS[d.provider]
+  if (d.mode !== 'byok' || !adapter) throw Object.assign(new Error(t('The Coach isn’t set up on this phone.')), { status: 503, code: 'off' })
+  const cap = await capState()
+  if (cap.used >= cap.limit) throw Object.assign(new Error(t('The Coach is taking a breather. You’ve used today’s {0} runs on this phone.', cap.limit)), { status: 429, code: 'cap' })
+  await bumpDaily()
+  const key = await getApiKey()
+  const { system, user } = buildChat(S, { handle: await handle(), question: String(question || '').slice(0, 1000), conversation: Array.isArray(conversation) ? conversation : [], lang: getLang() })
+  const r = await adapter.invoke({ cfg: cfgOf(d), system, prompt: user, model: d.model || HTTP_PROVIDERS[d.provider].defaultModel, timeoutMs: CHAT_TIMEOUT_MS, maxTokens: CHAT_MAX_TOKENS, plain: true, env: envOf(d, key), fetch: nativeFetch })
+  if (r.timedOut) throw Object.assign(new Error(t('The Coach took too long and gave up.')), { status: 504, code: 'timeout' })
+  if (r.spawnError || r.code !== 0) {
+    const detail = String(r.stderr || r.text || '').slice(0, 300)
+    const auth = /auth|unauthor|api key|credential|token|401|403|login/i.test(detail)
+    throw Object.assign(new Error((auth ? t('Your AI provider rejected the key on this phone. Check it under Settings → AI Coach.') : t('Your AI provider couldn’t answer.')) + (detail ? '\n' + detail : '')), { status: 502, code: auth ? 'auth' : 'provider' })
+  }
+  const reply = cleanReply(r.text)
+  if (!reply) throw Object.assign(new Error(t('The Coach answered with something the app couldn’t use.')), { status: 502, code: 'unusable' })
+  return { reply }
+}
 export async function localResolve() { await saveCoachDevice({ pending: null }); return { ok: true } }
 export async function localForget() { job = null; lastError = null; await saveCoachDevice({ pending: null, daily: null }); return { ok: true } }
 

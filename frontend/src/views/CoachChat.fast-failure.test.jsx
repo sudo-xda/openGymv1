@@ -46,7 +46,9 @@ vi.mock('../lib/api.js', () => ({
       if (mocks.statusGate) { const gate = mocks.statusGate; mocks.statusGate = null; await gate }
       return snap
     }
-    if (opts?.method === 'POST' && /^\/api\/coach\/(review|plan|debrief|ask)$/.test(path)) {
+    // The chat answers in the same call: a provider that is down is a refusal, not a job.
+    if (path === '/api/coach/ask') throw Object.assign(new Error('provider down'), { status: 502, data: { error: 'provider down', code: 'provider' } })
+    if (opts?.method === 'POST' && /^\/api\/coach\/(review|plan|debrief)$/.test(path)) {
       const id = 'job' + (++srv.n)
       srv.used++
       srv.last = { id, kind: path.endsWith('plan') ? 'create' : path.endsWith('ask') ? 'chat' : 'review', outcome: 'failed', errorClass: 'provider', at: Date.now() }
@@ -132,7 +134,6 @@ describe('a Coach run that fails before the first poll', () => {
     await click(container.querySelector('.composer .send'))
     expect(mocks.S.coach.chat.at(-2)).toMatchObject({ role: 'user', kind: 'text', text: 'Add more legs please' })
     expect(mocks.S.coach.chat.at(-1)).toMatchObject({ role: 'coach', kind: 'error', text: FAILED })
-    expect(mocks.server.last.kind).toBe('chat')
   })
 
   it('the plan the intake asked for, failed before the chat opened, is answered when it opens', async () => {

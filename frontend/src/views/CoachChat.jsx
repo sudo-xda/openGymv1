@@ -61,6 +61,8 @@ export default function CoachChat() {
   const [expanded, setExpanded] = useState(false)
   const [busy, setBusy] = useState(false)
   const [drawer, setDrawer] = useState(false)
+  // A reply on its way: the chat's own typing bubble, seconds long, nothing to poll.
+  const [thinking, setThinking] = useState(false)
   // A phone that brought its own key and has none saved (a reinstall, a Keystore that forgot).
   const [needKey, setNeedKey] = useState(false)
   const endRef = useRef(null)
@@ -142,24 +144,56 @@ export default function CoachChat() {
   const threads = coach.threads || []
   const thread = threads.find(th => th.id === coach.activeThread) || threads[threads.length - 1] || null
   const messages = thread ? thread.messages : (coach.chat || [])
-  useEffect(() => { if (typeof endRef.current?.scrollIntoView === 'function') endRef.current.scrollIntoView({ block: 'end' }) }, [messages.length, thread?.id, !!job, !!pending])
+  useEffect(() => { if (typeof endRef.current?.scrollIntoView === 'function') endRef.current.scrollIntoView({ block: 'end' }) }, [messages.length, thread?.id, !!job, !!pending, thinking])
 
   if (!ready) return null
   const community = !!config?.coach?.community && !DEMO && !(MOBILE && coachMode === 'byok')
   const fail = e => { if (!isDeclined(e)) toast(JOB_ERRORS[e.data?.code] || e.message || t('Could not ask the Coach')) }
 
-  /** A question, typed or tapped: a chat job, unless a plan is waiting to be refined. */
+  /**
+   * A question, typed or tapped: answered in the same call (lib/coach-api.js requestAsk), the
+   * reply written into the thread it was asked in — unless a plan is waiting to be refined, which
+   * is a job. The message lands in the thread first, so the person sees it while the Coach types.
+   */
   const askText = async msg => {
     if (!msg || busy) return
     setBusy(true)
+    if (pending?.kind === 'create') {
+      try {
+        await refinePlan(msg)
+        update(s => appendChat(s, { role: 'user', kind: 'text', text: msg }))
+        setText(''); setExpanded(false); refresh()
+      } catch (e) { fail(e) }
+      setBusy(false)
+      return
+    }
+    const target = thread?.id || null
+    const lines = threadLines(thread)
+    let userLine = null
     try {
-      if (pending?.kind === 'create') await refinePlan(msg)
-      else { askedIn.current = thread?.id || null; await requestAsk(msg, threadLines(thread)) }
-      update(s => appendChat(s, { role: 'user', kind: 'text', text: msg }))
-      setText('')
-      setExpanded(false)
-      refresh()
-    } catch (e) { fail(e) }
+      update(s => { userLine = appendChat(s, { role: 'user', kind: 'text', text: msg }) })
+      setText(''); setExpanded(false)
+      setThinking(true)
+      const r = await requestAsk(msg, lines)
+      const reply = String(r?.reply || '').trim()
+      if (!reply) throw Object.assign(new Error(JOB_ERRORS.unusable), { data: { code: 'unusable' } })
+      update(s => {
+        const c = (s.coach = s.coach || emptyCoach())
+        pushMessageTo(c, target, { role: 'coach', kind: 'text', md: true, text: reply })
+        if (r?.title) offerTitle(c, target, r.title)
+      })
+    } catch (e) {
+      // "Not now" on the data-sharing question: the message comes back out of the thread and
+      // into the box, as if never sent. Anything else is the Coach's error line, in the thread.
+      if (isDeclined(e)) {
+        update(s => { const c = (s.coach = s.coach || emptyCoach()); const th = (c.threads || []).find(x => x.id === target); if (th && userLine) { th.messages = th.messages.filter(x => x.id !== userLine.id); syncChat(c) } })
+        setText(msg)
+      } else {
+        const line = JOB_ERRORS[e.data?.code] || e.message || t('Could not ask the Coach')
+        update(s => { pushMessageTo(s.coach = s.coach || emptyCoach(), target, { role: 'coach', kind: 'error', text: line }) })
+      }
+    }
+    setThinking(false)
     setBusy(false)
   }
   const send = () => askText(text.trim())
@@ -190,17 +224,21 @@ export default function CoachChat() {
     const prior = messages.slice(0, i)
     const q = [...prior].reverse().find(x => x.role === 'user' && x.kind === 'text')
     if (!q) return
+    const target = thread?.id || null
     setBusy(true)
+    setThinking(true)
     try {
-      askedIn.current = thread?.id || null
-      await requestAsk(q.text, threadLines({ messages: prior.filter(x => x.id !== q.id) }))
+      const r = await requestAsk(q.text, threadLines({ messages: prior.filter(x => x.id !== q.id) }))
+      const reply = String(r?.reply || '').trim()
+      if (!reply) throw Object.assign(new Error(JOB_ERRORS.unusable), { data: { code: 'unusable' } })
       update(s => {
         const c = (s.coach = s.coach || emptyCoach())
-        const th = (c.threads || []).find(x => x.id === thread.id)
+        const th = (c.threads || []).find(x => x.id === target)
         if (th) { th.messages = th.messages.filter(x => x.id !== m.id); syncChat(c) }
+        pushMessageTo(c, target, { role: 'coach', kind: 'text', md: true, text: reply })
       })
-      refresh()
     } catch (e) { fail(e) }
+    setThinking(false)
     setBusy(false)
   }
   const copy = async m => {
@@ -258,7 +296,7 @@ export default function CoachChat() {
       : [config?.coach?.providerLabel || providerName(config?.coach?.provider), config?.coach?.model].filter(Boolean).join(' · ')
   const placeholder = pending?.kind === 'create'
     ? t('What should change?')
-    : job ? t('Coach is thinking…') : t('Ask your Coach…')
+    : job || thinking ? t('Coach is thinking…') : t('Ask your Coach…')
 
   return <div className="narrow chat chat-v2">
     <div className="chat-hdr">
@@ -267,7 +305,7 @@ export default function CoachChat() {
       <div className="chat-av"><Icon name="sparkles" /></div>
       <div className="grow">
         <h1 className="chat-title">{thread?.title || t('Coach')}</h1>
-        <div className="chat-pill" title={provider}><i className={'dot' + (job ? ' live' : '')} />{provider}{provider ? ' · ' : ''}{job ? t('thinking…') : t('Live gym sync')}</div>
+        <div className="chat-pill" title={provider}><i className={'dot' + (job || thinking ? ' live' : '')} />{provider}{provider ? ' · ' : ''}{job || thinking ? t('thinking…') : t('Live gym sync')}</div>
       </div>
       <button className="iconbtn" onClick={startNew} aria-label={t('New chat')}><Icon name="plusCircle" /></button>
       <button className="iconbtn" onClick={menu} aria-label={t('More')}><Icon name="more" /></button>
@@ -282,6 +320,7 @@ export default function CoachChat() {
           first={!messages[i - 1] || messages[i - 1].role !== m.role} />
       </Fragment>)}
 
+      {thinking && !job && <div className="msg coach first"><span className="msg-av" aria-hidden="true"><Icon name="sparkles" /></span><div className="bub typing"><i /><i /><i /></div></div>}
       {job && <Typing S={S} kind={job.kind} coachLocal={coachLocal} config={config} />}
 
       {pending && !job && (pending.kind === 'create'

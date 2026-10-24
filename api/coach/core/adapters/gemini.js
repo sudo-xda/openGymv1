@@ -1,7 +1,7 @@
 /* Google Gemini (Generative Language API). The key travels as a header, never as `?key=` —
  * a query string ends up in proxy logs, error messages and browser history. */
 import { httpAdapter } from './http.js';
-import { SYSTEM_PROMPT } from '../system-prompt.js';
+import { systemPrefix } from '../system-prompt.js';
 
 export const geminiSpec = {
   id: 'gemini',
@@ -10,10 +10,10 @@ export const geminiSpec = {
   headers: key => ({ 'x-goog-api-key': key }),
   // No responseSchema on purpose: Gemini's OpenAPI subset rejects the type unions our schemas
   // use for before/after, and json mime plus the validator already holds the line.
-  body: ({ prompt, system, maxTokens }) => ({
-    systemInstruction: { parts: [{ text: system ? SYSTEM_PROMPT + '\n\n' + system : SYSTEM_PROMPT }] },
+  body: ({ prompt, system, maxTokens, plain }) => ({
+    systemInstruction: { parts: [{ text: system ? systemPrefix(plain) + '\n\n' + system : systemPrefix(plain) }] },
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { responseMimeType: 'application/json', maxOutputTokens: maxTokens }
+    generationConfig: { ...(plain ? {} : { responseMimeType: 'application/json' }), maxOutputTokens: maxTokens }
   }),
   errorMessage: data => data && data.error && data.error.message,
   readText: data => {

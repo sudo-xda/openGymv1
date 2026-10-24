@@ -113,20 +113,19 @@ export function coachRoutes({ json, readBody, readSession, requireAdmin }) {
 
     // A question, answered in prose. Nothing to apply — the reply lands in the thread the app
     // sent and the proposal is cleared as soon as the app has read it.
+    // A conversation, not a job: the answer comes back in this response (jobs.askNow, core/chat.js).
     'POST /api/coach/ask': async (req, res) => {
       const user = guard(req, res); if (!user) return;
       const body = await readBody(req);
       const question = body.question ? String(body.question).slice(0, cfgStore.MAX_MESSAGE_LEN_CEILING) : '';
       if (!question.trim()) return json(res, 400, { error: 'question is required', code: 'noquestion' });
       try {
-        const job = jobs.enqueue(user.id, {
-          kind: 'chat',
-          lang: body.lang,
-          question,
-          conversation: Array.isArray(body.conversation) ? body.conversation : null
-        });
-        json(res, 202, { job });
-      } catch (e) { failEnqueue(res, e); }
+        const r = await jobs.askNow(user.id, { question, lang: body.lang, conversation: Array.isArray(body.conversation) ? body.conversation : null });
+        json(res, 200, { reply: r.reply, ms: r.ms });
+      } catch (e) {
+        if (e instanceof jobs.CoachError) return json(res, HTTP_FOR[e.code] || (['auth', 'provider', 'timeout', 'missing', 'unusable'].includes(e.code) ? 502 : 400), { error: USER_ERROR[e.code] || e.message, code: e.code });
+        throw e;
+      }
     },
 
     // A meal in words → items with calories and macros, or { suggest: true } → three meals for

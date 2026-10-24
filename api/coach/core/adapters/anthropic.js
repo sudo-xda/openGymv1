@@ -1,6 +1,6 @@
 /* Anthropic Messages API. */
 import { httpAdapter } from './http.js';
-import { SYSTEM_PROMPT } from '../system-prompt.js';
+import { systemPrefix } from '../system-prompt.js';
 
 export const ANTHROPIC_VERSION = '2023-06-01';
 
@@ -17,12 +17,12 @@ export const anthropicSpec = {
   }),
   // The rules block is marked cacheable: identical for every job of a task, so subsequent
   // jobs read it from Anthropic's prompt cache at a tenth of the input price.
-  body: ({ model, prompt, system, maxTokens }) => ({
+  body: ({ model, prompt, system, maxTokens, plain }) => ({
     model,
     max_tokens: maxTokens,
     system: system
-      ? [{ type: 'text', text: SYSTEM_PROMPT + '\n\n' + system, cache_control: { type: 'ephemeral' } }]
-      : SYSTEM_PROMPT,
+      ? [{ type: 'text', text: systemPrefix(plain) + '\n\n' + system, cache_control: { type: 'ephemeral' } }]
+      : systemPrefix(plain),
     messages: [{ role: 'user', content: prompt }]
   }),
   errorMessage: data => data && data.error && data.error.message,

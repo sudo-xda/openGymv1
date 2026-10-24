@@ -28,7 +28,7 @@ import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { unprivilegedIds } from './spawn.js';
-import { SYSTEM_PROMPT } from '../core/system-prompt.js';
+import { systemPrefix } from '../core/system-prompt.js';
 
 const PKG = '@anthropic-ai/claude-agent-sdk';
 const require_ = createRequire(import.meta.url);
@@ -92,7 +92,7 @@ export default {
     return { ok: true, version: v ? `Claude Agent SDK ${v}` : 'Claude Agent SDK' };
   },
 
-  async invoke({ prompt, jobDir, env, model, timeoutMs }) {
+  async invoke({ prompt, jobDir, env, model, timeoutMs, plain = false }) {
     const m = await sdk();
     if (!m) return { code: -1, text: '', stderr: `${PKG} is not installed`, timedOut: false, spawnError: true };
 
@@ -112,7 +112,7 @@ export default {
           // and the VAPID keys cannot reach the model process by inheritance.
           env: { ...env, CLAUDE_AGENT_SDK_CLIENT_APP: CLIENT_APP },
           model: model || undefined,
-          systemPrompt: SYSTEM_PROMPT,
+          systemPrompt: systemPrefix(plain),
           stderr: data => { if (stderr.length < OUTPUT_CAP) stderr += data; },
           spawnClaudeCodeProcess: spawnAsCoach
         }

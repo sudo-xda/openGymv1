@@ -355,8 +355,9 @@ function trim(s) {
 export function appendChat(s, entry) {
   const c = coachOf(s)
   // Into the active thread (lib/coach-threads.js), which keeps `c.chat` pointing at its lines.
-  pushMessage(c, entry)
+  const m = pushMessage(c, entry)
   trim(s)
+  return m
 }
 
 /** A job just finished: remember how long it took, for the next typing bubble. */

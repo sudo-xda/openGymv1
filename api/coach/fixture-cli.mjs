@@ -39,6 +39,17 @@ if (MODE === 'invalid-then-valid' && !isRepair) { process.stdout.write('{"change
 // the absence of one is what distinguishes the two.
 if (!/```json/.test(prompt)) out({ coach_contract: 1, ok: true });
 
+// The chat (core/chat.js) is not a job: a snapshot and a message, answered in words. The fixture
+// answers with a line that quotes the snapshot, so a test can see the context arrived.
+if (/## Message/.test(prompt)) {
+  const m = prompt.match(/```json\s*([\s\S]*?)```/);
+  let snap = {};
+  try { snap = m ? JSON.parse(m[1]) : {}; } catch { /* empty */ }
+  const q = (prompt.split('## Message')[1] || '').trim();
+  process.stdout.write(`Good question${snap.name ? ', ' + snap.name : ''}. You have **${snap.career?.sessions ?? 0} sessions** logged and ${(snap.conversation || []).length} earlier lines in this thread. You asked: ${q.slice(0, 60)}\n`);
+  process.exit(0);
+}
+
 // The payload the server built is embedded in the prompt between fences; pull it back out so
 // the answer references ids that actually exist.
 function payload() {
