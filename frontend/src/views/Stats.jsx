@@ -727,6 +727,9 @@ export default function Stats() {
     </div>
 
     <SummariesCard S={S} />
+    {S.recoveryOn === true && <div className="card tappable" style={{ cursor: 'pointer' }} onClick={() => nav('/health')} data-health-link>
+      <div className="row between"><div className="row" style={{ gap: 9 }}><span className="lrow-i" style={{ background: 'var(--red)' }}><Icon name="heart" /></span><div><div className="lbl2">{t('Health Connect')}</div><div className="ttl">{t('Heart rate, sleep, activity, body')}</div></div></div><Icon name="chevronRight" className="chev" /></div>
+    </div>}
     {workouts.length > 0 && <RecoveryCard S={S} />}
     {(workouts.length > 0 || Object.keys(loadOfWeeklyPlan(S)).length > 0) && <MuscleBalance S={S} />}
     {S.routines.length > 0 && <WeeklyPlanVolume S={S} />}

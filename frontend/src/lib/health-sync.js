@@ -222,3 +222,16 @@ export async function readRecovery(days = 3) {
   if (!p || p.platform !== 'android') throw Object.assign(new Error('not android'), { code: 'unavailable' })
   return p.HC.readRecovery({ days })
 }
+/** Everything of the last `days` days (HealthConnectPlugin.readAll): rows per type, `denied` for what was not allowed. */
+export async function readAllHealth(days = 7) {
+  const p = await plugin()
+  if (!p || p.platform !== 'android') throw Object.assign(new Error('not android'), { code: 'unavailable' })
+  return p.HC.readAll({ days })
+}
+/** The heart-rate samples between two moments, for a workout's window (lib/workout-hr.js). */
+export async function readHeartRate(from, to) {
+  const p = await plugin()
+  if (!p || p.platform !== 'android') throw Object.assign(new Error('not android'), { code: 'unavailable' })
+  const r = await p.HC.readHeartRate({ from, to })
+  return r?.hr || []
+}

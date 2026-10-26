@@ -9,6 +9,7 @@ import { copyText } from '../lib/clipboard.js'
 import { useUI } from '../store/useUI.js'
 import { recoveryStatus, requestRecoveryPermissions } from '../lib/health-sync.js'
 import { refreshRecovery } from '../lib/recovery-engine.js'
+import * as liveHr from '../lib/live-hr.js'
 import { refreshToast } from '../components/RecoveryCard.jsx'
 import { ACCENTS, ACCENT_NAMES, todayISO, localTZ, weekStartOf, MONDAY, SUNDAY, fmtPlate } from '../lib/format.js'
 import { inventoryFor, ownsPlates } from '../lib/plates.js'
@@ -858,6 +859,7 @@ export default function Settings({ page = null, find = null, via = null, entryKe
       {MOBILE && <HealthConnectCard S={S} toast={toast} android={android} />}
       {/* Reading the band back from Health Connect: the recovery engine, beside the writing. */}
       {MOBILE && android && <RecoverySection S={S} update={update} />}
+      {MOBILE && android && <BandSection />}
       <Section title={t('Bring data in')}>
         <Row icon="download" iconTint="var(--teal)" title={t('Import backup')} accessory="chevron" onClick={() => fileRef.current.click()} />
         <Row icon="download" iconTint="var(--teal)" title={t('Import from another app')}
@@ -1615,6 +1617,7 @@ function HealthConnectCard({ S, toast, android }) {
 
 /* ---------- the recovery engine, from Health Connect (Android only; lib/recovery-engine.js) ---------- */
 function RecoverySection({ S, update }) {
+  const nav = useNavigate()
   const toast = useUI(s => s.toast)
   const [st, setSt] = useState(null)      // null: not the Android app, or not asked yet
   const [busy, setBusy] = useState(false)
@@ -1642,9 +1645,53 @@ function RecoverySection({ S, update }) {
       <Switch checked={S.recoveryOn === true} onChange={turnOn} />
     </Row>
     {S.recoveryOn === true && <Row icon="repeat" iconTint="var(--acc)" title={busy ? t('Reading…') : t('Read now')} subtitle={t('Today’s night, resting heart rate and steps')} accessory="chevron" onClick={busy ? undefined : readNow} />}
+    {S.recoveryOn === true && <Row icon="chart" iconTint="var(--teal)" title={t('Health data')} subtitle={t('Heart rate, sleep, activity, the band’s workouts, the body')} accessory="chevron" onClick={() => nav('/health')} />}
+    {S.recoveryOn === true && st.readGranted && <Row icon="key" iconTint="var(--blue)" title={t('Allow more types')} subtitle={t('Distance, calories, workouts, blood oxygen, weight and more')} accessory="chevron" onClick={() => requestRecoveryPermissions().then(load).catch(() => {})} />}
     {S.recoveryOn === true && <Row icon="sunrise" iconTint="var(--yellow)" title={t('Morning reading')} subtitle={t('Read the night on the first open of the day')}>
       <Switch checked={S.recoveryAuto !== false} onChange={v => update(s => { s.recoveryAuto = v })} />
     </Row>}
     {!st.readGranted && st.status === 'available' && <Row icon="key" iconTint="var(--blue)" title={t('Allow reading')} subtitle={t('Sleep, heart rate, resting heart rate, steps, HRV')} accessory="chevron" onClick={() => requestRecoveryPermissions().then(load).catch(() => {})} />}
   </Section>
+}
+
+/* ---------- the band's live heart rate over Bluetooth (Android only; lib/live-hr.js) ---------- */
+function BandSection() {
+  const toast = useUI(s => s.toast)
+  const openSheet = useUI(s => s.openSheet)
+  const [ok, setOk] = useState(false)
+  const [cfg, setCfg] = useState(null)
+  const [st, setSt] = useState(null)
+  const load = () => Promise.all([liveHr.available(), liveHr.loadLiveHr(), liveHr.status()]).then(([a, c, s]) => { setOk(a); setCfg({ ...c }); setSt(s) }).catch(() => setOk(false))
+  useEffect(() => { load() }, [])
+  if (!ok || !cfg) return null
+  const pick = () => openSheet(close => <BandPicker close={close} onPicked={async d => { await liveHr.chooseBand(d); load(); toast(t('Band chosen: {0}', d.name || d.address)) }} />)
+  const toggle = async v => { await liveHr.setLiveHrOn(v); load() }
+  return <Section title={t('Band heart rate (Bluetooth)')} footer={t('A Mi Band shares its heart rate over Bluetooth while a workout mode runs on the band, with “activity heart rate sharing” on in the Zepp app; a chest strap shares always. The app connects when a workout starts and writes the heart rate onto every set.')}>
+    <Row icon="heart" iconTint="var(--red)" title={t('Use during workouts')} subtitle={!st?.supported ? t('No Bluetooth LE on this phone') : !st?.enabled ? t('Bluetooth is off') : cfg.address ? (cfg.name || cfg.address) : t('No band chosen yet')}>
+      <Switch checked={cfg.on === true} disabled={!cfg.address} onChange={toggle} />
+    </Row>
+    <Row icon="magnifier" iconTint="var(--blue)" title={cfg.address ? t('Choose another band') : t('Find the band')} subtitle={t('Start a workout mode on the band first, then scan')} accessory="chevron" onClick={pick} />
+  </Section>
+}
+function BandPicker({ close, onPicked }) {
+  const [state, setState] = useState('idle')   // idle | scanning | done | denied | off
+  const [devices, setDevices] = useState([])
+  const scan = async () => {
+    const st = await liveHr.status()
+    if (!st.enabled) { setState('off'); return }
+    if (!st.granted && !(await liveHr.requestPermissions())) { setState('denied'); return }
+    setState('scanning')
+    try { setDevices(await liveHr.scan(8000)); setState('done') } catch { setState('done') }
+  }
+  useEffect(() => { scan() }, [])
+  return <>
+    <h3>{t('Find the band')}</h3>
+    {state === 'scanning' && <div className="chat-empty">{t('Scanning for a heart-rate broadcast… start a workout mode on the band if it is not sharing yet.')}</div>}
+    {state === 'off' && <div className="chat-empty">{t('Turn Bluetooth on first.')}</div>}
+    {state === 'denied' && <div className="chat-empty">{t('Bluetooth permission was not granted.')}</div>}
+    {state === 'done' && !devices.length && <div className="chat-empty">{t('Nothing found. On the band, start a workout mode; in the Zepp app, turn on activity heart rate sharing; then scan again.')}</div>}
+    {state === 'done' && devices.map(d => <Row key={d.address} icon="heart" iconTint="var(--red)" title={d.name || t('Unnamed device')} subtitle={d.address} accessory="chevron" onClick={() => { onPicked(d); close() }} />)}
+    <div style={{ height: 8 }} />
+    <Button icon="repeat" disabled={state === 'scanning'} onClick={scan}>{t('Scan again')}</Button>
+  </>
 }

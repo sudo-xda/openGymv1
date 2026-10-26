@@ -80,7 +80,7 @@ export default function RecoveryCard() {
       </div>}
     </> : <div className="muted small">{t('Reading Health Connect. Refresh once the band has synced to its app.')}</div>}
     <div className="row" style={{ justifyContent: 'flex-end', marginTop: 4 }}>
-      <Button size="sm" variant="ghost" trailingIcon="chevronRight" onClick={() => nav('/settings')}>{t('Recovery settings')}</Button>
+      <Button size="sm" variant="ghost" trailingIcon="chevronRight" onClick={() => nav('/health')}>{t('All health data')}</Button>
     </div>
   </div>
 }

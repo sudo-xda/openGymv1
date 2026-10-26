@@ -31,6 +31,9 @@ import { afterScrollRestore, scrollRestorePending } from '../components/Modals.j
 import { effortColor } from '../lib/effort.js'
 import Elapsed from '../components/Elapsed.jsx'
 import Icon from '../components/Icon.jsx'
+import * as liveHr from '../lib/live-hr.js'
+import { SET_SPAN_MS } from '../lib/workout-hr.js'
+import '../health.css'
 import { Button, Check, NumberField } from '../components/ui.jsx'
 import { defaultIncrement, weightIncrement, stepWeight } from '../lib/progression.js'
 import { progressionGuidance } from '../lib/progression-copy.js'
@@ -1137,6 +1140,17 @@ function ActiveWorkout() {
   // both would win over a scroll made right here. A frame asked for now runs after theirs.
   const listRef = useRef(null)
   const hdrRef = useRef(null)
+  // The band's live heart rate (lib/live-hr.js): connected as the session opens, shown in the
+  // header, written onto every set at its tick. Nothing when no band is chosen.
+  const [liveBpm, setLiveBpm] = useState(null)
+  const lastTick = useRef(null)
+  useEffect(() => {
+    if (editing || A.backfill) return
+    let alive = true
+    const off = liveHr.onLiveHr(ev => { if (alive) setLiveBpm(ev.connected ? ev.bpm : null) })
+    liveHr.startLiveHr().then(r => { if (alive && r.ok) setLiveBpm(liveHr.latestBpm() ?? 0) }).catch(() => {})
+    return () => { alive = false; off(); liveHr.stopLiveHr().catch(() => {}) }
+  }, [])
   useEffect(() => {
     if (!listMode) return
     const schedule = callback => window.requestAnimationFrame
@@ -1666,7 +1680,23 @@ function ActiveWorkout() {
       else e.sets[i].done = !e.sets[i].done
       checked = e.sets[i].done
       // When the work happened, for the session's end (lib/finish-workout.js sessionEnd).
-      if (!editing && (side ? e.sets[i].sides[side].done : checked)) e.sets[i].at = Date.now()
+      if (!editing && (side ? e.sets[i].sides[side].done : checked)) {
+        const now = Date.now()
+        e.sets[i].at = now
+        // The band's stream: this set is the last SET_SPAN_MS before its tick, the previous set's
+        // rest the stretch between the two. A set the watch already measured keeps its reading.
+        if (liveHr.isConnected()) {
+          const from = Math.max(lastTick.current || 0, now - SET_SPAN_MS)
+          const hr = liveHr.setHrSince(from, now)
+          if (hr && !e.sets[i].hr) e.sets[i].hr = hr
+          if (lastTick.current && lastTick.current < from) {
+            const prev = s.active.entries.flatMap(en => en.sets).filter(x => x.at === lastTick.current)[0]
+            const restHr = liveHr.setHrSince(lastTick.current, from)
+            if (prev && restHr && !prev.restHr) prev.restHr = restHr
+          }
+          lastTick.current = now
+        }
+      }
       // A finished row has no use for a plan set aside by a hold that did not finish.
       if (checked && e.sets[i].planSec != null) delete e.sets[i].planSec
       if (e.sets[i].done && !editing) {
@@ -2014,7 +2044,7 @@ function ActiveWorkout() {
       {editing
         ? <button className="iconbtn" aria-label={t('Close editor')} title={t('Close editor')} onClick={() => exitWorkoutEdit()}><Icon name="xmark" /></button>
         : <button className="iconbtn" aria-label={t('Minimize')} title={t('Minimize')} onClick={() => nav('/home')}><Icon name="chevronDown" /></button>}
-      <div className="whdr-mid"><div className="whdr-name">{A.name}</div><div className="sub">{(A.backfill || editing) ? fmtDate(A.d, true) : <Elapsed start={A.start} />} · {t('{0} sets', done + '/' + total)}</div></div>
+      <div className="whdr-mid"><div className="whdr-name">{A.name}</div><div className="sub">{(A.backfill || editing) ? fmtDate(A.d, true) : <Elapsed start={A.start} />} · {t('{0} sets', done + '/' + total)}{liveBpm != null && <> · <span className={'whdr-hr' + (liveBpm ? '' : ' off')} aria-label={t('Heart rate')}><Icon name="heart" />{liveBpm || '–'}</span></>}</div></div>
       <button className="iconbtn" aria-label={t('Workout options')} title={t('Workout options')} onClick={openViewMenu}><Icon name="more" /></button>
       <button className="btn primary pill whdr-finish" aria-label={editing ? t('Save changes') : undefined}
         onClick={() => (editing ? finishWorkout() : finishWorkoutSheet({ onDiscard: discardWorkout }))}>{editing ? t('Save') : t('Finish')}</button>

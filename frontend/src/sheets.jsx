@@ -61,7 +61,8 @@ import { workoutsOn, backfillStart, backfillEnd, completeBackfill, historyAsOf, 
 import { moveWorkout, sameWorkout, startTimeOf, durationMinOf, setWorkoutDuration, rebuildPrHistory, MAX_DURATION_MIN, endsInFuture } from './lib/workout-date.js'
 import { editCompletedSession, editLeftEmpty, editedRecord, editChangesNothing } from './lib/session-edit.js'
 import { stampWorkout } from './lib/sync-merge.js'
-import { hrLabel } from './lib/heart-rate.js'
+import { hrLabel, sanitizeHr } from './lib/heart-rate.js'
+import { fillWorkoutHr } from './lib/workout-hr-fill.js'
 import { weeklyWeights } from './lib/bodyweight.js'
 import { workoutText } from './lib/workout-text.js'
 import { workoutCardModel, layoutWorkoutCard, drawWorkoutCard, viewAspect, CARD_FONT, FORMATS } from './lib/workout-card.js'
@@ -2712,6 +2713,7 @@ function WorkoutDetail({ w, close }) {
     {/* The Coach's summary of this session, when one was written (sheets.jsx AutoDebrief, or asked
         for in the chat): the score and its sentence here, the whole reading a tap away. */}
     <WorkoutVerdict w={w} />
+    <WorkoutHeartRate w={w} />
     {/* Progress photos and form-check videos: added and removed right here, on the saved record. */}
     <WorkoutMediaSection w={w} />
     <div className="small muted" style={{ margin: '4px 0 6px' }}>{t('Session note')}</div>
@@ -3546,6 +3548,7 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
       {prs.map(id => <div key={id} className="small accent row" style={{ gap: 5 }}><Icon name="trophy" style={{ fontSize: 13 }} />{t('New PR:')} <span className={exerciseNameClass(EXIDX[id])}>{EXIDX[id] ? exerciseNameFor(EXIDX[id]) : id}</span></div>)}
       {e1prs.map(p => <div key={p.id} className="small accent row" style={{ gap: 5 }}><Icon name="chartLine" style={{ fontSize: 13 }} />{t('Best estimated 1RM:')} <span className={exerciseNameClass(EXIDX[p.id])}>{EXIDX[p.id] ? exerciseNameFor(EXIDX[p.id]) : p.id}</span> · {fmtNum(p.est)} {st.unit}</div>)}
     </div>}
+    <WorkoutHeartRate w={w} auto />
     <h4 className="sec" style={{ textAlign: 'start' }}>{t('What you just trained')}</h4>
     <BodyMap load={loadOfWorkouts([w])} body={st.body} />
     <div style={{ height: 14 }} />
@@ -3719,4 +3722,32 @@ function doFinishWorkout() {
   useUI.getState().stopWork()
   beep(snd(), 880, 0.15); beep(snd(), 1100, 0.15, 0.18); beep(snd(), 1320, 0.3, 0.36)
   ui().openSheet(close => <FinishSummary w={shown} prs={prs} e1prs={e1prs} close={close} />, { kind: 'center', locked: true })
+}
+
+/* ============================ a workout's heart rate from Health Connect ============================ */
+// The finish summary asks once by itself (the band's app may not have synced yet: then the button
+// stays); a past workout's sheet asks on the button. Android with the recovery engine on only.
+function WorkoutHeartRate({ w, auto = false }) {
+  const st = useStore(s => s.S)
+  const rec = st.workouts.find(x => sameWorkout(x, w)) || w
+  const [state, setState] = useState('idle')      // idle | busy | none | off
+  const on = MOBILE && st.recoveryOn === true
+  const fill = async () => {
+    setState('busy')
+    const r = await fillWorkoutHr(rec)
+    setState(r.ok ? 'idle' : r.reason === 'nosamples' ? 'none' : 'off')
+    if (!auto) toast(r.ok ? tn('Heart rate on {0} set', 'Heart rate on {0} sets', r.sets) : r.reason === 'nosamples' ? t('No heart-rate samples for this session yet. Sync the band in its app and try again.') : r.reason === 'permission' ? t('Allow reading in Settings → Recovery first.') : t('Could not read Health Connect.'))
+  }
+  useEffect(() => { if (auto && on && !sanitizeHr(rec.hr)) fill() }, [])
+  if (!on) return null
+  const hr = sanitizeHr(rec.hr)
+  return <div style={{ textAlign: 'start', marginBottom: 12 }}>
+    {hr && <div className="row" style={{ gap: 8, alignItems: 'baseline', marginBottom: 6 }}>
+      <span style={{ color: 'var(--red)', fontWeight: 600 }}>♥ {hr.avg} <span className="dim small">{t('avg')}</span> · {hr.max} <span className="dim small">{t('peak')}</span></span>
+      {rec.hrFrom === 'health' && <span className="small dim">{t('from Health Connect')}</span>}
+    </div>}
+    {!!rec.hrSeries?.length && <div className="chart"><LineChart points={rec.hrSeries.map(([x, y]) => ({ t: x, y }))} h={90} unit="bpm" color="var(--red)" axes={false} /></div>}
+    {!hr && state === 'none' && <div className="small muted">{t('No heart-rate samples for this session in Health Connect yet.')}</div>}
+    <Button size="sm" icon="heart" disabled={state === 'busy'} onClick={fill} style={{ marginTop: 6 }}>{state === 'busy' ? t('Reading…') : hr ? t('Read again') : t('Heart rate from Health Connect')}</Button>
+  </div>
 }

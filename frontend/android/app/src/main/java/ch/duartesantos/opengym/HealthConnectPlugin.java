@@ -7,7 +7,19 @@ import androidx.activity.result.ActivityResult;
 import androidx.activity.result.contract.ActivityResultContract;
 import androidx.health.connect.client.HealthConnectClient;
 import androidx.health.connect.client.PermissionController;
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord;
+import androidx.health.connect.client.records.BasalMetabolicRateRecord;
+import androidx.health.connect.client.records.BloodPressureRecord;
+import androidx.health.connect.client.records.BodyFatRecord;
+import androidx.health.connect.client.records.BodyTemperatureRecord;
+import androidx.health.connect.client.records.DistanceRecord;
 import androidx.health.connect.client.records.ExerciseSessionRecord;
+import androidx.health.connect.client.records.FloorsClimbedRecord;
+import androidx.health.connect.client.records.HydrationRecord;
+import androidx.health.connect.client.records.OxygenSaturationRecord;
+import androidx.health.connect.client.records.RespiratoryRateRecord;
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord;
+import androidx.health.connect.client.records.Vo2MaxRecord;
 import androidx.health.connect.client.records.HeartRateRecord;
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord;
 import androidx.health.connect.client.records.Record;
@@ -85,6 +97,17 @@ public class HealthConnectPlugin extends Plugin {
     private static final String READ_RESTING_HEART_RATE = "android.permission.health.READ_RESTING_HEART_RATE";
     private static final String READ_STEPS = "android.permission.health.READ_STEPS";
     private static final String READ_HRV = "android.permission.health.READ_HEART_RATE_VARIABILITY";
+    // Everything else a band app may write, every one optional: a type the person did not allow
+    // is skipped and named in the answer's `denied` list, the rest still comes.
+    private static final String[] READ_MORE = {
+        "android.permission.health.READ_DISTANCE", "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+        "android.permission.health.READ_TOTAL_CALORIES_BURNED", "android.permission.health.READ_EXERCISE",
+        "android.permission.health.READ_OXYGEN_SATURATION", "android.permission.health.READ_RESPIRATORY_RATE",
+        "android.permission.health.READ_VO2_MAX", "android.permission.health.READ_WEIGHT", "android.permission.health.READ_BODY_FAT",
+        "android.permission.health.READ_FLOORS_CLIMBED", "android.permission.health.READ_BLOOD_PRESSURE",
+        "android.permission.health.READ_BASAL_METABOLIC_RATE", "android.permission.health.READ_BODY_TEMPERATURE",
+        "android.permission.health.READ_HYDRATION"
+    };
     private static final String TAG = "openGym/HealthConnect";
     // Health Connect takes at most this many records in one insert.
     private static final int CHUNK = 500;
@@ -113,12 +136,16 @@ public class HealthConnectPlugin extends Plugin {
         p.add(READ_RESTING_HEART_RATE);
         p.add(READ_STEPS);
         p.add(READ_HRV);
+        for (String m : READ_MORE) p.add(m);
         return p;
     }
-    // The optional one: a band without HRV must not block the rest.
+    // The required four: a band without HRV or the rest must not block the recovery engine.
     private static Set<String> requiredReadPermissions() {
-        Set<String> p = readPermissions();
-        p.remove(READ_HRV);
+        Set<String> p = new HashSet<>();
+        p.add(READ_SLEEP);
+        p.add(READ_HEART_RATE);
+        p.add(READ_RESTING_HEART_RATE);
+        p.add(READ_STEPS);
         return p;
     }
 
@@ -370,6 +397,150 @@ public class HealthConnectPlugin extends Plugin {
                 call.reject(e.getMessage(), "failed");
             }
         });
+    }
+
+    /**
+     * Everything Health Connect holds for the last `days` days, every type a band app writes, as
+     * plain rows (views/Health.jsx, lib/health-data.js). A type the person did not allow is left
+     * out and named in `denied`; a type with nothing in it is an empty list. Times are epoch ms.
+     */
+    @PluginMethod
+    public void readAll(PluginCall call) {
+        if (!"available".equals(sdkStatus())) {
+            call.reject("Health Connect is not available", "unavailable");
+            return;
+        }
+        final int days = Math.max(1, Math.min(MAX_READ_DAYS, call.getInt("days", 7)));
+        worker.execute(() -> {
+            try {
+                Instant end = Instant.now();
+                Instant start = end.minusSeconds((long) days * 86400L);
+                TimeRangeFilter range = TimeRangeFilter.Companion.between(start, end);
+                JSObject out = new JSObject();
+                JSArray denied = new JSArray();
+                out.put("sleep", guard(denied, "sleep", () -> sleepRows(readAll(SleepSessionRecord.class, range))));
+                out.put("restingHr", guard(denied, "restingHr", () -> rows2(readAll(RestingHeartRateRecord.class, range), r -> ((RestingHeartRateRecord) r).getTime().toEpochMilli(), r -> (double) ((RestingHeartRateRecord) r).getBeatsPerMinute())));
+                out.put("hr", guard(denied, "hr", () -> hrRows(readAll(HeartRateRecord.class, range))));
+                out.put("hrv", guard(denied, "hrv", () -> rows2(readAll(HeartRateVariabilityRmssdRecord.class, range), r -> ((HeartRateVariabilityRmssdRecord) r).getTime().toEpochMilli(), r -> ((HeartRateVariabilityRmssdRecord) r).getHeartRateVariabilityMillis())));
+                out.put("steps", guard(denied, "steps", () -> rows3(readAll(StepsRecord.class, range), r -> ((StepsRecord) r).getStartTime().toEpochMilli(), r -> ((StepsRecord) r).getEndTime().toEpochMilli(), r -> (double) ((StepsRecord) r).getCount())));
+                out.put("distance", guard(denied, "distance", () -> rows3(readAll(DistanceRecord.class, range), r -> ((DistanceRecord) r).getStartTime().toEpochMilli(), r -> ((DistanceRecord) r).getEndTime().toEpochMilli(), r -> ((DistanceRecord) r).getDistance().getMeters())));
+                out.put("activeKcal", guard(denied, "activeKcal", () -> rows3(readAll(ActiveCaloriesBurnedRecord.class, range), r -> ((ActiveCaloriesBurnedRecord) r).getStartTime().toEpochMilli(), r -> ((ActiveCaloriesBurnedRecord) r).getEndTime().toEpochMilli(), r -> ((ActiveCaloriesBurnedRecord) r).getEnergy().getKilocalories())));
+                out.put("totalKcal", guard(denied, "totalKcal", () -> rows3(readAll(TotalCaloriesBurnedRecord.class, range), r -> ((TotalCaloriesBurnedRecord) r).getStartTime().toEpochMilli(), r -> ((TotalCaloriesBurnedRecord) r).getEndTime().toEpochMilli(), r -> ((TotalCaloriesBurnedRecord) r).getEnergy().getKilocalories())));
+                out.put("floors", guard(denied, "floors", () -> rows3(readAll(FloorsClimbedRecord.class, range), r -> ((FloorsClimbedRecord) r).getStartTime().toEpochMilli(), r -> ((FloorsClimbedRecord) r).getEndTime().toEpochMilli(), r -> ((FloorsClimbedRecord) r).getFloors())));
+                out.put("hydration", guard(denied, "hydration", () -> rows3(readAll(HydrationRecord.class, range), r -> ((HydrationRecord) r).getStartTime().toEpochMilli(), r -> ((HydrationRecord) r).getEndTime().toEpochMilli(), r -> ((HydrationRecord) r).getVolume().getLiters() * 1000)));
+                out.put("exercise", guard(denied, "exercise", () -> exerciseRows(readAll(ExerciseSessionRecord.class, range))));
+                out.put("spo2", guard(denied, "spo2", () -> rows2(readAll(OxygenSaturationRecord.class, range), r -> ((OxygenSaturationRecord) r).getTime().toEpochMilli(), r -> ((OxygenSaturationRecord) r).getPercentage().getValue())));
+                out.put("respiratory", guard(denied, "respiratory", () -> rows2(readAll(RespiratoryRateRecord.class, range), r -> ((RespiratoryRateRecord) r).getTime().toEpochMilli(), r -> ((RespiratoryRateRecord) r).getRate())));
+                out.put("vo2max", guard(denied, "vo2max", () -> rows2(readAll(Vo2MaxRecord.class, range), r -> ((Vo2MaxRecord) r).getTime().toEpochMilli(), r -> ((Vo2MaxRecord) r).getVo2MillilitersPerMinuteKilogram())));
+                out.put("weight", guard(denied, "weight", () -> rows2(readAll(WeightRecord.class, range), r -> ((WeightRecord) r).getTime().toEpochMilli(), r -> ((WeightRecord) r).getWeight().getKilograms())));
+                out.put("bodyFat", guard(denied, "bodyFat", () -> rows2(readAll(BodyFatRecord.class, range), r -> ((BodyFatRecord) r).getTime().toEpochMilli(), r -> ((BodyFatRecord) r).getPercentage().getValue())));
+                out.put("temperature", guard(denied, "temperature", () -> rows2(readAll(BodyTemperatureRecord.class, range), r -> ((BodyTemperatureRecord) r).getTime().toEpochMilli(), r -> ((BodyTemperatureRecord) r).getTemperature().getCelsius())));
+                out.put("bmr", guard(denied, "bmr", () -> rows2(readAll(BasalMetabolicRateRecord.class, range), r -> ((BasalMetabolicRateRecord) r).getTime().toEpochMilli(), r -> ((BasalMetabolicRateRecord) r).getBasalMetabolicRate().getKilocaloriesPerDay())));
+                out.put("bloodPressure", guard(denied, "bloodPressure", () -> bpRows(readAll(BloodPressureRecord.class, range))));
+                out.put("denied", denied);
+                out.put("days", days);
+                Log.d(TAG, "readAll: " + days + " days, denied " + denied.length());
+                call.resolve(out);
+            } catch (Exception e) {
+                Log.d(TAG, "readAll failed: " + e.getMessage());
+                call.reject(e.getMessage(), "failed");
+            }
+        });
+    }
+
+    /** The heart-rate samples between two moments: a workout's window (lib/workout-hr.js). */
+    @PluginMethod
+    public void readHeartRate(PluginCall call) {
+        if (!"available".equals(sdkStatus())) {
+            call.reject("Health Connect is not available", "unavailable");
+            return;
+        }
+        Long from = call.getLong("from");
+        Long to = call.getLong("to");
+        if (from == null || to == null || to <= from) {
+            call.reject("from and to are required", "args");
+            return;
+        }
+        final Instant start = Instant.ofEpochMilli(from), end = Instant.ofEpochMilli(Math.min(to, from + 24L * 3600000L));
+        worker.execute(() -> {
+            try {
+                JSObject out = new JSObject();
+                out.put("hr", hrRows(readAll(HeartRateRecord.class, TimeRangeFilter.Companion.between(start, end))));
+                call.resolve(out);
+            } catch (SecurityException e) {
+                call.reject(e.getMessage(), "permission");
+            } catch (Exception e) {
+                call.reject(e.getMessage(), "failed");
+            }
+        });
+    }
+
+    private interface Reader { JSArray read() throws Exception; }
+    private interface L { long of(Record r); }
+    private interface D { double of(Record r); }
+    /** One type's rows, or an empty list with the type named in `denied` when it is not allowed. */
+    private static JSArray guard(JSArray denied, String name, Reader reader) throws Exception {
+        try { return reader.read(); }
+        catch (SecurityException e) { denied.put(name); return new JSArray(); }
+    }
+    private static JSArray rows2(List<Record> recs, L t, D v) {
+        JSArray out = new JSArray();
+        for (Record r : recs) { JSArray row = new JSArray(); row.put(t.of(r)); row.put(v.of(r)); out.put(row); }
+        return out;
+    }
+    private static JSArray rows3(List<Record> recs, L a, L b, D v) {
+        JSArray out = new JSArray();
+        for (Record r : recs) { JSArray row = new JSArray(); row.put(a.of(r)); row.put(b.of(r)); row.put(v.of(r)); out.put(row); }
+        return out;
+    }
+    private static JSArray hrRows(List<Record> recs) {
+        JSArray out = new JSArray();
+        int n = 0;
+        for (Record rec : recs) {
+            for (HeartRateRecord.Sample smp : ((HeartRateRecord) rec).getSamples()) {
+                if (n++ >= MAX_SAMPLES) return out;
+                JSArray row = new JSArray(); row.put(smp.getTime().toEpochMilli()); row.put(smp.getBeatsPerMinute()); out.put(row);
+            }
+        }
+        return out;
+    }
+    private static JSArray sleepRows(List<Record> recs) {
+        JSArray out = new JSArray();
+        for (Record rec : recs) {
+            SleepSessionRecord s = (SleepSessionRecord) rec;
+            JSObject o = new JSObject();
+            o.put("start", s.getStartTime().toEpochMilli());
+            o.put("end", s.getEndTime().toEpochMilli());
+            JSArray stages = new JSArray();
+            for (SleepSessionRecord.Stage st : s.getStages()) {
+                JSArray row = new JSArray(); row.put(st.getStartTime().toEpochMilli()); row.put(st.getEndTime().toEpochMilli()); row.put(st.getStage()); stages.put(row);
+            }
+            o.put("stages", stages);
+            out.put(o);
+        }
+        return out;
+    }
+    private static JSArray exerciseRows(List<Record> recs) {
+        JSArray out = new JSArray();
+        for (Record rec : recs) {
+            ExerciseSessionRecord e = (ExerciseSessionRecord) rec;
+            JSObject o = new JSObject();
+            o.put("start", e.getStartTime().toEpochMilli());
+            o.put("end", e.getEndTime().toEpochMilli());
+            o.put("type", e.getExerciseType());
+            o.put("title", e.getTitle() == null ? "" : e.getTitle());
+            o.put("app", e.getMetadata().getDataOrigin().getPackageName());
+            out.put(o);
+        }
+        return out;
+    }
+    private static JSArray bpRows(List<Record> recs) {
+        JSArray out = new JSArray();
+        for (Record rec : recs) {
+            BloodPressureRecord b = (BloodPressureRecord) rec;
+            JSArray row = new JSArray(); row.put(b.getTime().toEpochMilli()); row.put(b.getSystolic().getMillimetersOfMercury()); row.put(b.getDiastolic().getMillimetersOfMercury()); out.put(row);
+        }
+        return out;
     }
 
     /** Every record of a type in the range, page after page. */

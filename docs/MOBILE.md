@@ -463,3 +463,32 @@ the baseline, HRV down, or deep and REM sleep well under the baseline means it m
 adjustment — about 15% off the working weights, fewer sets, nothing to failure, or a lighter
 day. Readings are kept per day for ninety days and merge per day across devices; only the
 Android app ever writes one.
+
+### The whole picture, and the heart rate of a workout
+
+Once the engine is on, Home's Recovery card and Settings → Recovery both open **Health**: every
+day as the band wrote it — the heart rate's curve with low, average and peak, the night by stage,
+steps, distance, calories, floors and water, the workouts recorded on the band with their heart
+rate, and the body's numbers (blood oxygen, breathing rate, weight and body fat, VO₂ max, blood
+pressure, temperature, basal metabolic rate). Every type beyond the four the engine needs is
+optional: **Allow more types** asks Health Connect for the rest, and a type still refused is
+named at the foot of the screen. A month of day summaries is kept in the phone's own file; the
+raw samples are read from Health Connect each time.
+
+A finished workout gets its heart rate from Health Connect too: when the finish summary opens and
+again from a past workout's sheet (**Heart rate from Health Connect**), the session's window is
+read and every ticked set gets its average and peak, the rest after it its own, and the session
+its average, peak and a per-minute curve — the same fields the Apple Watch writes, so the history
+reads them the same way. The band's app writes to Health Connect after it syncs, so the figures
+may arrive minutes or hours after the session; the sheet's button reads again.
+
+### Live heart rate from the band (Bluetooth)
+
+A Mi Band shares its heart rate over Bluetooth LE — the standard Heart Rate Service — while a
+workout mode runs on the band and *activity heart rate sharing* is on in the Zepp app; a chest
+strap shares always. Settings → **Band heart rate (Bluetooth)** → **Find the band** scans for a
+heart-rate broadcast (start the workout mode on the band first) and remembers the band on this
+phone. With **Use during workouts** on, the app connects as a workout starts, shows the live rate
+in the workout header, and writes every set's average and peak and the rest after it as the set
+is ticked — live, without waiting for the band's app to sync. Android 12 and up asks for the
+Bluetooth permissions once; older Androids ask for location, which scanning needs there.
