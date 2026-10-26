@@ -816,7 +816,6 @@ export default function Settings({ page = null, find = null, via = null, entryKe
             style={{ width: 150, textAlign: 'end' }} />
         </Row>
       </Section>
-      <RecoverySection S={S} update={update} />
       <Section title={t('On Home')}>
         {/* Membership QR codes on Home (views/CheckIn.jsx); off = no Home card, no route. */}
         <Row icon="qr" iconTint="var(--blue)" title={t('Gym check-in')}
@@ -857,6 +856,8 @@ export default function Settings({ page = null, find = null, via = null, entryKe
         {MOBILE && android && S.autoBackup && <BackupFolderRow />}
       </Section>
       {MOBILE && <HealthConnectCard S={S} toast={toast} android={android} />}
+      {/* Reading the band back from Health Connect: the recovery engine, beside the writing. */}
+      {MOBILE && android && <RecoverySection S={S} update={update} />}
       <Section title={t('Bring data in')}>
         <Row icon="download" iconTint="var(--teal)" title={t('Import backup')} accessory="chevron" onClick={() => fileRef.current.click()} />
         <Row icon="download" iconTint="var(--teal)" title={t('Import from another app')}
@@ -1617,7 +1618,9 @@ function RecoverySection({ S, update }) {
   const toast = useUI(s => s.toast)
   const [st, setSt] = useState(null)      // null: not the Android app, or not asked yet
   const [busy, setBusy] = useState(false)
-  const load = () => recoveryStatus().then(s => setSt(s.status === 'unsupported' ? null : s))
+  // Asked inside a promise, so a page whose Health Connect bridge is absent (or played by a test
+  // without this call) simply shows no section rather than failing the whole screen.
+  const load = () => Promise.resolve().then(() => recoveryStatus()).then(s => setSt(s && s.status !== 'unsupported' ? s : null)).catch(() => setSt(null))
   useEffect(() => { load() }, [])
   if (!st) return null
   const turnOn = async v => {
