@@ -134,7 +134,5 @@
     <!-- Whether the Health Connect app is there, on Android 13 and lower. -->
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
-        <!-- Whether Gadgetbridge is there, for the band sync broadcast (GadgetbridgePlugin). -->
-        <package android:name="nodomain.freeyourgadget.gadgetbridge" />
     </queries>
 </manifest>
