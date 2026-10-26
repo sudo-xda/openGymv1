@@ -2416,4 +2416,6 @@ export default {
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': 'Su questo dispositivo ci sono {0} allenamenti che non sono in questo backup. Sostituire li elimina.',
   'Your nutrition log': 'Il tuo diario alimentare',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'I pasti che hai registrato, con le tue parole e i loro numeri, la tua acqua e i tuoi obiettivi di calorie e macro: oggi e la settimana precedente.',
+  'Your band’s readings': 'Le letture del tuo braccialetto',
+  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'Sonno per fasi, frequenza cardiaca a riposo, passi e punteggio di recupero da Gadgetbridge: oggi e la settimana precedente, solo con un braccialetto collegato.',
 }

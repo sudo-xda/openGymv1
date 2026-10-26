@@ -16,6 +16,8 @@ Change something when the data says so:
 
 **One session is not a trend.** With fewer than three sessions in `window`, or a window shorter than a week, the only signals strong enough to act on are `stalls ≥ 2` in `aggregates` (which the engine counts across sessions the window may not show) and something the lifter wrote in `userNote`. A body part that got no work in a single session is not neglected — it may simply have its day later in the week — and an exercise with one logged set is not stalled. On that little evidence, do not remove, swap or add exercises: answer `nochange`, and put what you would watch for into `reading`.
 
+**Auto-regulation.** When `biometrics.advice` is `deload` — a resting heart rate above the baseline with short or shallow sleep — the review says so in `summary` and puts one concrete adjustment for the next session into `notes` (about 15% off the working weights, fewer sets, nothing to failure, or a lighter day). The plan itself is not rewritten for one bad night: a `sets` cut is justified only when the flags have held for most of the week.
+
 **Change nothing when nothing warrants it.** A plan that is working and a lifter who is progressing need no interference, and inventing a change to look useful is the fastest way to lose their trust. In that case answer:
 
 ```

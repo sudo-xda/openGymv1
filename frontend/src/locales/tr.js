@@ -2416,4 +2416,6 @@ export default {
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': 'Bu cihazda bu yedekte olmayan {0} antrenman var. Değiştirmek onları siler.',
   'Your nutrition log': 'Beslenme günlüğün',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'Kendi sözlerinle kaydettiğin öğünler ve sayıları, suyun ve kalori ile makro hedeflerin — bugün ve önceki hafta.',
+  'Your band’s readings': 'Bilekliğinin ölçümleri',
+  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'Gadgetbridge’den evrelere göre uyku, dinlenme nabzı, adımlar ve toparlanma puanı — bugün ve önceki hafta, yalnızca bir bileklik bağlıyken.',
 }

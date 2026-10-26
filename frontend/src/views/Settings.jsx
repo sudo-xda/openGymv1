@@ -7,6 +7,7 @@ import { speedUnitOf } from '../lib/speed.js'
 import { formulaOf, FORMULA_NAMES } from '../lib/onerm.js'
 import { copyText } from '../lib/clipboard.js'
 import { useUI } from '../store/useUI.js'
+import { available, status, pickDatabase, forget, refreshBiometrics } from '../lib/gadgetbridge.js'
 import { ACCENTS, ACCENT_NAMES, todayISO, localTZ, weekStartOf, MONDAY, SUNDAY, fmtPlate } from '../lib/format.js'
 import { inventoryFor, ownsPlates } from '../lib/plates.js'
 import { BAR_TYPES, ownBarDefault } from '../lib/bar.js'
@@ -813,6 +814,7 @@ export default function Settings({ page = null, find = null, via = null, entryKe
             style={{ width: 150, textAlign: 'end' }} />
         </Row>
       </Section>
+      <BandSection S={S} update={update} />
       <Section title={t('On Home')}>
         {/* Membership QR codes on Home (views/CheckIn.jsx); off = no Home card, no route. */}
         <Row icon="qr" iconTint="var(--blue)" title={t('Gym check-in')}
@@ -1606,4 +1608,37 @@ function HealthConnectCard({ S, toast, android }) {
         accessory="chevron" onClick={() => openHealthConnect().catch(() => {})} />}
     </Section>
   )
+}
+
+/* ---------- the band, through Gadgetbridge (Android only; lib/gadgetbridge.js) ---------- */
+function BandSection({ S, update }) {
+  const toast = useUI(s => s.toast)
+  const [st, setSt] = useState(null)      // null: not the Android app, or not asked yet
+  const [busy, setBusy] = useState(false)
+  const load = () => available().then(ok => (ok ? status().then(setSt) : setSt(null)))
+  useEffect(() => { load() }, [])
+  if (!st) return null
+  const pick = async () => {
+    const r = await pickDatabase().catch(() => null)
+    if (r) { toast(t('Export chosen: {0}', r.name || '')); load() }
+  }
+  const syncNow = async () => {
+    setBusy(true)
+    const r = await refreshBiometrics({ withSync: true })
+    setBusy(false)
+    toast(r.ok ? t('Recovery updated') : r.reason === 'nodb' ? t('Choose the export file first.') : r.reason === 'nosleep' ? t('No night in the export yet. Sync the band and export again.') : r.reason === 'nosamples' ? t('The export has no recent samples.') : t('Could not read the band’s data.'))
+  }
+  const forgetIt = () => confirmSheet({
+    title: t('Disconnect the band?'), message: t('The export file is forgotten on this phone. Readings already kept stay.'), confirmText: t('Disconnect'), danger: true,
+    onConfirm: async () => { await forget(); load(); toast(t('Band disconnected')) }
+  })
+  return <Section title={t('Band (Gadgetbridge)')} footer={t('Sleep, resting heart rate and steps from a Mi Band or any band Gadgetbridge supports, read from Gadgetbridge’s exported database. Turn on its auto-export, then choose that file here.')}>
+    <Row icon="watch" iconTint={st.installed ? 'var(--green)' : 'var(--label-3)'} title={t('Gadgetbridge')} value={st.installed ? t('Installed') : t('Not installed')} />
+    <Row icon="folder" iconTint="var(--blue)" title={st.hasDatabase ? t('Export file') : t('Choose the export file')} subtitle={st.hasDatabase ? (st.name || t('chosen')) : t('The database Gadgetbridge exports')} accessory="chevron" onClick={pick} />
+    {st.hasDatabase && <Row icon="repeat" iconTint="var(--acc)" title={busy ? t('Syncing…') : t('Sync now')} subtitle={t('Ask Gadgetbridge for the band’s data and read the export')} accessory="chevron" onClick={busy ? undefined : syncNow} />}
+    {st.hasDatabase && <Row icon="sunrise" iconTint="var(--yellow)" title={t('Morning reading')} subtitle={t('Read the night on the first open of the day')}>
+      <Switch checked={S.biometricsAuto !== false} onChange={v => update(s => { s.biometricsAuto = v })} />
+    </Row>}
+    {st.hasDatabase && <Row icon="trash" iconTint="var(--red)" title={t('Disconnect')} danger onClick={forgetIt} />}
+  </Section>
 }

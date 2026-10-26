@@ -2420,4 +2420,6 @@ export default {
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': 'На этом устройстве есть тренировки, которых нет в этой копии ({0}). Замена их удалит.',
   'Your nutrition log': 'Ваш дневник питания',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'Приёмы пищи, записанные вашими словами, с их цифрами, ваша вода и ваши цели по калориям и макросам — сегодня и за неделю до этого.',
+  'Your band’s readings': 'Показания вашего браслета',
+  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'Сон по фазам, пульс в покое, шаги и оценка восстановления из Gadgetbridge — сегодня и за неделю до этого, только при подключённом браслете.',
 }

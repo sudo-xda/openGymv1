@@ -500,3 +500,19 @@
 .deb-ring.sm{width:44px;height:44px}
 .deb-ring.sm::before{inset:4px}
 .deb-ring.sm span{font-size:16px;line-height:44px}
+
+/* ---------- recovery from the band (components/RecoveryCard.jsx) ---------- */
+.rec-hero{display:flex;align-items:center;gap:14px}
+.rec-hero .grow{flex:1;min-width:0}
+.deb-ring.rec-ring{width:72px;height:72px;background:conic-gradient(var(--c,var(--acc)) calc(var(--pct) * 360deg),var(--surface-2) 0)}
+.deb-ring.rec-ring::before{inset:7px}
+.deb-ring.rec-ring span{font-size:24px;line-height:72px}
+.rec-word{font-size:16px;font-weight:600;letter-spacing:-.012em;margin-bottom:6px}
+.rec-tiles{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px}
+.rec-tiles>div{display:flex;flex-direction:column;line-height:1.15}
+.rec-tiles b{font-size:15px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.rec-tiles span{font-size:11px;color:var(--label-2)}
+.rec-advice{display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--c) 12%,var(--surface));font-size:13.5px;line-height:1.4}
+.rec-advice .icn{color:var(--c);flex:none;font-size:15px;margin-top:1px}
+.rec-flags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.rec-flags .tag{font-size:11px}

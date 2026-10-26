@@ -253,5 +253,5 @@ export const demoMeal = (S, meal) => start('meal', () => {
 export const demoResolve = () => { pending = null; return { ok: true } }
 export const demoDisclosure = () => ({
   provider: 'demo', providerLabel: t('the configured AI provider'),
-  categories: ['plan', 'training', 'bodyweight', 'profile', 'prefs', 'nutrition'], version: 1
+  categories: ['plan', 'training', 'bodyweight', 'profile', 'prefs', 'nutrition', 'biometrics'], version: 1
 })

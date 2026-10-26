@@ -1537,6 +1537,8 @@ export const PT_BR_OVERRIDES = {
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': 'Este dispositivo tem {0} treinos que não estão neste backup. Substituir exclui esses treinos.',
   'Your nutrition log': 'Seu diário de nutrição',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'As refeições que você registrou, nas suas palavras e com seus números, sua água e suas metas de calorias e macros: hoje e a semana anterior.',
+  'Your band’s readings': 'As leituras da sua pulseira',
+  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'Sono por fases, frequência cardíaca em repouso, passos e a pontuação de recuperação do Gadgetbridge: hoje e a semana anterior, só com uma pulseira conectada.',
 }
 
 export default { ...pt, ...PT_BR_OVERRIDES }

@@ -2419,4 +2419,6 @@ export default {
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': 'Ezen az eszközön {0} edzés van, amely nincs ebben a mentésben. A csere törli őket.',
   'Your nutrition log': 'Az étkezési naplód',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'A saját szavaiddal rögzített étkezéseid és a számaik, a vízfogyasztásod, valamint a kalória- és makrocéljaid – ma és az azt megelőző héten.',
+  'Your band’s readings': 'A karkötőd mérései',
+  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'Alvás szakaszonként, nyugalmi pulzus, lépések és a regenerációs pontszám a Gadgetbridge-ből – ma és az azt megelőző héten, csak csatlakoztatott karkötővel.',
 }

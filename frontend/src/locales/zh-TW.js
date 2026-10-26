@@ -2409,4 +2409,6 @@ export default {
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': '此裝置上有 {0} 筆訓練紀錄不在此備份中。覆蓋將會將其全數刪除。',
   'Your nutrition log': '你的營養紀錄',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': '你用自己的話記錄的餐點及其數字、你的飲水量，以及你的熱量與巨量營養素目標——今天和前一週。',
+  'Your band’s readings': '你的手環讀數',
+  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': '來自 Gadgetbridge 的分階段睡眠、靜息心率、步數與恢復分數——今天和前一週，僅在連接手環後。',
 }

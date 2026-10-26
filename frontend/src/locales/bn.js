@@ -2495,4 +2495,6 @@ export default {
   'This device has {0} workouts that are not in this backup. Replacing deletes them.': 'এই ডিভাইসে {0}টি ওয়ার্কআউট আছে যা এই ব্যাকআপে নেই। প্রতিস্থাপন করলে এগুলো মুছে যাবে।',
   'Your nutrition log': 'আপনার পুষ্টি লগ',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'আপনার নিজের কথায় লগ করা খাবার ও তার সংখ্যা, আপনার পানি, এবং আপনার ক্যালরি ও ম্যাক্রো লক্ষ্য — আজ এবং তার আগের সপ্তাহ।',
+  'Your band’s readings': 'আপনার ব্যান্ডের রিডিং',
+  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'Gadgetbridge থেকে পর্যায় অনুযায়ী ঘুম, বিশ্রামের হৃদস্পন্দন, পদক্ষেপ ও রিকভারি স্কোর — আজ এবং তার আগের সপ্তাহ, কেবল একটি ব্যান্ড সংযুক্ত হলে।',
 }
