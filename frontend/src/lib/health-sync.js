@@ -197,3 +197,28 @@ export function initHealthSync(getState) {
   // also settles whether it is on, which the saves wait for (syncHealth).
   setTimeout(() => loadHealth().then(h => { mirrorOn(h.on); return syncHealth(getState()) }).catch(() => {}), 3000)
 }
+
+/* ---------- reading: the recovery engine (lib/recovery-engine.js) ----------
+   Separate permissions from the writing above, asked for only when the Recovery card is turned
+   on. Android only: the iPhone app reads the heart rate for the watch already and has no
+   recovery read yet, so a phone that is not Android answers 'unsupported'. */
+export async function recoveryStatus() {
+  if (!MOBILE) return { status: 'unsupported', readGranted: false }
+  try {
+    const p = await plugin()
+    if (!p || p.platform !== 'android') return { status: 'unsupported', readGranted: false }
+    const s = await p.HC.status()
+    return { status: s.status, readGranted: !!s.readGranted }
+  } catch { return { status: 'unsupported', readGranted: false } }
+}
+export async function requestRecoveryPermissions() {
+  const p = await plugin()
+  if (!p || p.platform !== 'android') return { readGranted: false }
+  return p.HC.requestReadPermissions()
+}
+/** The raw rows of the last `days` days (HealthConnectPlugin.readRecovery), or a thrown error. */
+export async function readRecovery(days = 3) {
+  const p = await plugin()
+  if (!p || p.platform !== 'android') throw Object.assign(new Error('not android'), { code: 'unavailable' })
+  return p.HC.readRecovery({ days })
+}

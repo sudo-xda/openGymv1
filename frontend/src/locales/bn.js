@@ -2496,5 +2496,5 @@ export default {
   'Your nutrition log': 'আপনার পুষ্টি লগ',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'আপনার নিজের কথায় লগ করা খাবার ও তার সংখ্যা, আপনার পানি, এবং আপনার ক্যালরি ও ম্যাক্রো লক্ষ্য — আজ এবং তার আগের সপ্তাহ।',
   'Your band’s readings': 'আপনার ব্যান্ডের রিডিং',
-  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'Gadgetbridge থেকে পর্যায় অনুযায়ী ঘুম, বিশ্রামের হৃদস্পন্দন, পদক্ষেপ ও রিকভারি স্কোর — আজ এবং তার আগের সপ্তাহ, কেবল একটি ব্যান্ড সংযুক্ত হলে।',
+  'Sleep by stage, resting heart rate, HRV, steps and the recovery score from Health Connect — today and the week before, only once the recovery engine is on.': 'Health Connect থেকে পর্যায় অনুযায়ী ঘুম, বিশ্রামের হৃদস্পন্দন, পদক্ষেপ ও রিকভারি স্কোর — আজ এবং তার আগের সপ্তাহ, কেবল একটি ব্যান্ড সংযুক্ত হলে।',
 }

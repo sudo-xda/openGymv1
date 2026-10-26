@@ -27,13 +27,7 @@ The Coach learns to talk, and to write up every workout by itself.
 - **Share a workout card.** From the finish summary and from any past session: a dark card with
   the duration, sets, volume, a PR badge, the top lifts and the new records, as a 9:16 story, a
   1:1 square or the fitted card, previewed before it goes to the share sheet or your downloads.
-- **Recovery from a band (Android).** Connect a Mi Band through Gadgetbridge and a Recovery
-  card at the top of Home shows the night (deep, light, REM), the resting heart rate against the
-  week, steps and a 0–100 score, with one line on what to do with today's session. Read once a
-  day on the first open, and on demand. The Coach reads the same numbers and follows an
-  auto-regulation protocol: a high resting heart rate or a short, shallow night means it suggests
-  about 15% off the working weights or a lighter day. A new consent category, so the consent
-  screen is shown once more.
+- **Recovery from Health Connect (Android).** Turn it on and a Recovery card at the top of Home shows the night (deep, light, REM), the resting heart rate against the week, HRV, steps and a 0–100 score, with one line on what to do with today's session. Read once a day on the first open and on demand. The Coach reads the same numbers and follows an auto-regulation protocol: a high resting heart rate, low HRV or a short, shallow night means it suggests about 15% off the working weights or a lighter day. A new consent category, so the consent screen is shown once more.
 - **The Coach from Home.** A chat-bubble card on Home opens the conversation, showing the
   last thing said. The questionnaire can be skipped: one tap opens the chat with whatever was
   answered, and the questions wait in the chat's menu under Edit my answers. Settings → Your

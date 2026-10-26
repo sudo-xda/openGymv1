@@ -11,5 +11,5 @@ export const DATA_CATEGORIES = Object.freeze([
   'profile',     // the intake answers you gave the Coach, including any limitations
   'prefs',       // unit, language, effort scale
   'nutrition',   // meals logged, water, calorie and macro targets — today and the week before
-  'biometrics'   // the band's readings: sleep, resting heart rate, steps and the recovery score — today and the week before
+  'biometrics'   // the band's readings from Health Connect: sleep, resting heart rate, HRV, steps and the recovery score — today and the week before
 ]);

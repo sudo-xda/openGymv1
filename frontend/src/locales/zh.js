@@ -2417,5 +2417,5 @@ export default {
   'Your nutrition log': '你的营养记录',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': '你用自己的话记录的餐食及其数字、你的饮水量，以及你的热量和宏量营养素目标——今天和前一周。',
   'Your band’s readings': '你的手环读数',
-  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': '来自 Gadgetbridge 的分阶段睡眠、静息心率、步数和恢复分数——今天和前一周，仅在连接手环后。',
+  'Sleep by stage, resting heart rate, HRV, steps and the recovery score from Health Connect — today and the week before, only once the recovery engine is on.': '来自 Health Connect 的分阶段睡眠、静息心率、步数和恢复分数——今天和前一周，仅在连接手环后。',
 }

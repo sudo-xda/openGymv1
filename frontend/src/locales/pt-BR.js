@@ -1538,7 +1538,7 @@ export const PT_BR_OVERRIDES = {
   'Your nutrition log': 'Seu diário de nutrição',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'As refeições que você registrou, nas suas palavras e com seus números, sua água e suas metas de calorias e macros: hoje e a semana anterior.',
   'Your band’s readings': 'As leituras da sua pulseira',
-  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'Sono por fases, frequência cardíaca em repouso, passos e a pontuação de recuperação do Gadgetbridge: hoje e a semana anterior, só com uma pulseira conectada.',
+  'Sleep by stage, resting heart rate, HRV, steps and the recovery score from Health Connect — today and the week before, only once the recovery engine is on.': 'Sono por fases, frequência cardíaca em repouso, passos e a pontuação de recuperação do Health Connect: hoje e a semana anterior, só com uma pulseira conectada.',
 }
 
 export default { ...pt, ...PT_BR_OVERRIDES }

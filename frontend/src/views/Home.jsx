@@ -7,7 +7,7 @@ import { t, tn, dateLocale } from '../lib/i18n.js'
 import { bwSheet, goalSheet, dayOverrideSheet, calendarSheet, startFlow, starterPlanSheet, bwDeltaColor, weighInsSheet } from '../sheets.jsx'
 import { NutritionCard } from './Nutrition.jsx'
 import RecoveryCard from '../components/RecoveryCard.jsx'
-import { morningRefresh } from '../lib/gadgetbridge.js'
+import { morningRefresh } from '../lib/recovery-engine.js'
 import { useCoachGate } from '../lib/use-coach-gate.js'
 import { plainText } from '../lib/markdown.js'
 
@@ -128,7 +128,7 @@ export default function Home() {
   // A chip on the coach week's progress row starts that one routine, in any order. A session
   // already in progress wins, as on the today row — starting another would overwrite it.
   const onQueueStart = id => { if (S.active) nav('/workout'); else startFlow([id]) }
-  // The band's morning reading, once a day on the first open (lib/gadgetbridge.js; Android only).
+  // The band's morning reading, once a day on the first open (lib/recovery-engine.js; Android only).
   useEffect(() => { morningRefresh().catch(() => {}) }, [])
 
   return <div className="narrow">

@@ -24,7 +24,7 @@ import { t, tn } from './i18n.js'
 // Bumping this re-prompts everyone: it means what we share, or who we share it with, changed.
 // 2: the training line names the session notes, which the payload carries and version 1 never
 // mentioned. 3: the nutrition log (meals, water, targets) rides with a debrief and a chat.
-// 4: the band's readings (sleep, resting heart rate, steps, recovery score) ride with them too.
+// 4: the band's readings (sleep, resting heart rate, HRV, steps, recovery score) ride with them too.
 export const CONSENT_VERSION = 4
 
 // Bounds. The whole state has to stay inside the server's 5 MB body limit, and a Coach log
@@ -82,7 +82,7 @@ export const CATEGORY_TEXT = {
   profile: () => [t('What you tell the Coach'), t('Your intake answers, including any limitations or injuries you describe.')],
   prefs: () => [t('A few preferences'), t('Your unit, your language and which effort scale you log.')],
   nutrition: () => [t('Your nutrition log'), t('Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.')],
-  biometrics: () => [t('Your band’s readings'), t('Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.')]
+  biometrics: () => [t('Your band’s readings'), t('Sleep by stage, resting heart rate, HRV, steps and the recovery score from Health Connect — today and the week before, only once the recovery engine is on.')]
 }
 export const hasConsent = S => !!S?.coach?.consent?.agreedAt && S.coach.consent.version === CONSENT_VERSION
 

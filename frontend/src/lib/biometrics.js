@@ -1,44 +1,36 @@
-// A band's night and day as a recovery signal — pure functions over Gadgetbridge's minute
-// samples (GadgetbridgePlugin.java read(): rows of [timestamp, steps, heartRate, rawKind]).
+// The recovery engine: a band's night and day, read from Health Connect, as a readiness score —
+// pure functions over the rows HealthConnectPlugin.readRecovery() returns:
+//
+//   sleep      [{ start, end, stages: [[start, end, stage], …] }]   Health Connect sleep sessions
+//   restingHr  [[time, bpm]]                                         what the band app computed
+//   hr         [[time, bpm]]                                         every heart-rate sample
+//   steps      [[start, end, count]]
+//   hrv        [[time, rmssdMs]]
 //
 // What comes out, per day (S.biometrics[iso]):
 //   sleep       { deep, light, rem, awake, total, efficiency }   minutes, and asleep / in bed
-//   restingHr   the lowest sustained heart rate of the night's sleep blocks
+//   restingHr   the band app's resting heart rate for the day, else the lowest sustained rate
+//               of the night's sleep
+//   hrv         the night's mean RMSSD, when the band writes one
 //   steps       the day's steps
 //   score       0–100, the readiness the Home card shows and the Coach reads
 //
-// Nothing here knows a band. The raw kinds a Mi Band 5 writes for sleep are in SLEEP_KINDS,
-// a table to extend when a firmware writes others; a sample is read as sleep only by that
-// table, never guessed from a low heart rate alone.
-export const INVALID_HR = 255
+// Stages are Health Connect's own codes (SleepSessionRecord.STAGE_TYPE_*), so nothing here
+// guesses what a band's raw value means.
+export const STAGE = Object.freeze({ UNKNOWN: 0, AWAKE: 1, SLEEPING: 2, OUT_OF_BED: 3, LIGHT: 4, DEEP: 5, REM: 6, AWAKE_IN_BED: 7 })
 export const HR_MIN = 30
 export const HR_MAX = 200
-// Gadgetbridge raw kinds, Mi Band 5 (Huami): the codes the task names, plus the Huami sample
-// provider's own. A kind in none of these lists is activity or unknown, never sleep.
-export const SLEEP_KINDS = Object.freeze({
-  deep: [89, 11, 112, 123],
-  light: [90, 9, 121, 122],
-  rem: [91, 8, 124],
-  awake: [92, 10, 110]
-})
 export const NIGHT_START_HOUR = 20      // the night before `day` starts at 20:00 …
 export const NIGHT_END_HOUR = 12        // … and ends at noon of `day`
-export const SLEEP_GAP_MIN = 30         // awake stretches shorter than this stay inside a sleep block
 export const SLEEP_TARGET_MIN = 450     // 7.5 h scores full marks for duration
 export const DEPTH_TARGET = 0.4         // deep + REM at 40 % of sleep scores full marks
 export const RHR_WINDOW_DAYS = 7
 export const KEEP_DAYS = 90
 
-const kindOf = k => (SLEEP_KINDS.deep.includes(k) ? 'deep' : SLEEP_KINDS.light.includes(k) ? 'light' : SLEEP_KINDS.rem.includes(k) ? 'rem' : SLEEP_KINDS.awake.includes(k) ? 'awake' : null)
-const validHr = hr => Number.isFinite(hr) && hr !== INVALID_HR && hr >= HR_MIN && hr <= HR_MAX
-
-/** Rows from the plugin as samples: `{ t (ms), steps, hr, kind }`, sorted by time. */
-export function parseSamples(rows) {
-  return (Array.isArray(rows) ? rows : [])
-    .map(r => (Array.isArray(r) ? { t: Number(r[0]) * 1000, steps: Number(r[1]) || 0, hr: Number(r[2]) || 0, kind: Number(r[3]) } : null))
-    .filter(s => s && Number.isFinite(s.t) && s.t > 0)
-    .sort((a, b) => a.t - b.t)
-}
+const num = v => (Number.isFinite(Number(v)) ? Number(v) : null)
+const validHr = hr => Number.isFinite(hr) && hr >= HR_MIN && hr <= HR_MAX
+const minutes = ms => Math.round(ms / 60000)
+const clip = (from, to, w) => Math.max(0, Math.min(to, w.to) - Math.max(from, w.from))
 
 /** The night before `day` (local time): 20:00 the evening before until noon of the day. */
 export function nightWindow(day) {
@@ -46,71 +38,86 @@ export function nightWindow(day) {
   const start = new Date(day + 'T00:00:00'); start.setDate(start.getDate() - 1); start.setHours(NIGHT_START_HOUR, 0, 0, 0)
   return { from: start.getTime(), to: end.getTime() }
 }
-const within = (s, w) => s.t >= w.from && s.t < w.to
+export const dayWindow = day => { const from = new Date(day + 'T00:00:00').getTime(); return { from, to: from + 86400000 } }
+
+/** The sleep sessions as the plugin returns them, cleaned; stages sorted. */
+export function parseSleep(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .map(s => (s && typeof s === 'object' ? {
+      start: num(s.start), end: num(s.end),
+      stages: (Array.isArray(s.stages) ? s.stages : []).map(r => (Array.isArray(r) ? { start: num(r[0]), end: num(r[1]), stage: num(r[2]) } : null)).filter(x => x && x.start != null && x.end != null && x.end > x.start).sort((a, b) => a.start - b.start)
+    } : null))
+    .filter(s => s && s.start != null && s.end != null && s.end > s.start)
+    .sort((a, b) => a.start - b.start)
+}
+const pairs = rows => (Array.isArray(rows) ? rows : []).map(r => (Array.isArray(r) ? { t: num(r[0]), v: num(r[1]) } : null)).filter(x => x && x.t != null && x.v != null).sort((a, b) => a.t - b.t)
 
 /**
- * The sleep blocks of a window: runs of sleep samples, with awake stretches shorter than
- * SLEEP_GAP_MIN kept inside a block (turning over is not getting up). Each block carries its
- * samples; minutes are counted one per sample, which is what a minute-sampling band writes.
+ * Deep, light, REM and awake minutes of the night, from the sessions that touch the window,
+ * each stage clipped to it. A session without stages (a band that only knows asleep/awake)
+ * counts as light sleep for its whole length, so the total and the efficiency still stand.
  */
-export function sleepBlocks(samples, window) {
-  const night = samples.filter(s => within(s, window))
-  const blocks = []
-  let cur = null
-  let gap = 0
-  for (const s of night) {
-    const k = kindOf(s.kind)
-    const asleep = k === 'deep' || k === 'light' || k === 'rem'
-    if (asleep) {
-      if (!cur) cur = { from: s.t, to: s.t, samples: [] }
-      cur.samples.push(s); cur.to = s.t; gap = 0
-    } else if (cur) {
-      gap++
-      if (k === 'awake') cur.samples.push(s)
-      if (gap >= SLEEP_GAP_MIN) { blocks.push(cur); cur = null; gap = 0 }
+export function sleepOf(sleep, window) {
+  const m = { deep: 0, light: 0, rem: 0, awake: 0 }
+  let first = Infinity, last = -Infinity
+  for (const s of parseSleep(sleep)) {
+    if (!clip(s.start, s.end, window)) continue
+    first = Math.min(first, Math.max(s.start, window.from)); last = Math.max(last, Math.min(s.end, window.to))
+    if (!s.stages.length) { m.light += minutes(clip(s.start, s.end, window)); continue }
+    for (const st of s.stages) {
+      const ms = clip(st.start, st.end, window)
+      if (!ms) continue
+      if (st.stage === STAGE.DEEP) m.deep += minutes(ms)
+      else if (st.stage === STAGE.REM) m.rem += minutes(ms)
+      else if (st.stage === STAGE.LIGHT || st.stage === STAGE.SLEEPING || st.stage === STAGE.UNKNOWN) m.light += minutes(ms)
+      else if (st.stage === STAGE.AWAKE || st.stage === STAGE.AWAKE_IN_BED) m.awake += minutes(ms)
+      // OUT_OF_BED is neither asleep nor in bed
     }
   }
-  if (cur) blocks.push(cur)
-  // Trailing awake minutes belong to the morning, not the block.
-  for (const b of blocks) {
-    while (b.samples.length && kindOf(b.samples[b.samples.length - 1].kind) === 'awake') b.samples.pop()
-    b.to = b.samples.length ? b.samples[b.samples.length - 1].t : b.from
-  }
-  return blocks.filter(b => b.samples.length >= 10)
-}
-
-/** Deep, light, REM and awake minutes of the night, the total asleep, and the efficiency. */
-export function sleepOf(samples, window) {
-  const blocks = sleepBlocks(samples, window)
-  const m = { deep: 0, light: 0, rem: 0, awake: 0 }
-  for (const b of blocks) for (const s of b.samples) { const k = kindOf(s.kind); if (k) m[k]++ }
   const total = m.deep + m.light + m.rem
   if (!total) return null
-  const inBed = total + m.awake
-  return { ...m, total, efficiency: Math.round((total / inBed) * 100) / 100, blocks: blocks.length, from: blocks[0].from, to: blocks[blocks.length - 1].to }
+  return { ...m, total, efficiency: Math.round((total / (total + m.awake)) * 100) / 100, from: first, to: last }
 }
 
 /**
- * The resting heart rate: the lowest sustained reading inside the sleep blocks — a rolling
- * median of five, so one stray beat does not become the number — ignoring 255 (off wrist, no
- * reading) and anything outside a living range. Null without ten valid readings.
+ * The resting heart rate: the band app's own figure for the day when it wrote one (the newest
+ * inside the day); otherwise the lowest sustained rate inside the night's sleep sessions — a
+ * rolling median of five samples, so one stray beat does not become the number. Null without
+ * ten valid samples.
  */
-export function restingHrOf(samples, window) {
-  const hrs = sleepBlocks(samples, window).flatMap(b => b.samples.map(s => s.hr)).filter(validHr)
-  if (hrs.length < 10) return null
+export function restingHrOf({ restingHr, hr, sleep }, day) {
+  const dw = dayWindow(day), nw = nightWindow(day)
+  const written = pairs(restingHr).filter(x => validHr(x.v) && ((x.t >= dw.from && x.t < dw.to) || (x.t >= nw.from && x.t < nw.to)))
+  if (written.length) return Math.round(written[written.length - 1].v)
+  const sessions = parseSleep(sleep).filter(s => clip(s.start, s.end, nw))
+  const inSleep = pairs(hr).filter(x => validHr(x.v) && sessions.some(s => x.t >= s.start && x.t <= s.end))
+  if (inSleep.length < 10) return null
   let best = Infinity
-  for (let i = 2; i < hrs.length - 2; i++) {
-    const w = hrs.slice(i - 2, i + 3).sort((a, b) => a - b)
+  for (let i = 2; i < inSleep.length - 2; i++) {
+    const w = inSleep.slice(i - 2, i + 3).map(x => x.v).sort((a, b) => a - b)
     best = Math.min(best, w[2])
   }
-  return Number.isFinite(best) ? best : null
+  return Number.isFinite(best) ? Math.round(best) : null
 }
 
-/** The day's steps, midnight to midnight, local time. */
-export function stepsOf(samples, day) {
-  const from = new Date(day + 'T00:00:00').getTime()
-  const to = from + 86400000
-  return samples.filter(s => s.t >= from && s.t < to).reduce((n, s) => n + Math.max(0, s.steps), 0)
+/** The day's steps: every step record clipped to the day, pro rata where a record straddles midnight. */
+export function stepsOf(steps, day) {
+  const w = dayWindow(day)
+  let n = 0
+  for (const r of Array.isArray(steps) ? steps : []) {
+    if (!Array.isArray(r)) continue
+    const start = num(r[0]), end = num(r[1]), count = num(r[2])
+    if (start == null || end == null || count == null || end <= start) continue
+    n += count * (clip(start, end, w) / (end - start))
+  }
+  return Math.round(n)
+}
+
+/** The night's heart-rate variability (RMSSD, ms), averaged; null when the band writes none. */
+export function hrvOf(hrv, day) {
+  const nw = nightWindow(day)
+  const v = pairs(hrv).filter(x => x.t >= nw.from && x.t < nw.to && x.v > 0 && x.v < 500).map(x => x.v)
+  return v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10 : null
 }
 
 /**
@@ -137,39 +144,42 @@ export function baselineOf(biometrics, day) {
   for (let i = 1; i <= RHR_WINDOW_DAYS; i++) { d.setDate(d.getDate() - 1); days.push(d.toISOString().slice(0, 10)) }
   const rows = days.map(k => biometrics?.[k]).filter(Boolean)
   const avg = pick => { const v = rows.map(pick).filter(n => Number.isFinite(n)); return v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10 : null }
-  return { days: rows.length, restingHr: avg(r => r.restingHr), sleepMin: avg(r => r.sleep?.total), deepRemMin: avg(r => (r.sleep ? r.sleep.deep + r.sleep.rem : null)), score: avg(r => r.score), steps: avg(r => r.steps) }
-}
-
-/** One day's reading from the samples, against the days before it. */
-export function dayReading(samples, day, biometrics = {}) {
-  const window = nightWindow(day)
-  const sleep = sleepOf(samples, window)
-  const restingHr = restingHrOf(samples, window)
-  const base = baselineOf(biometrics, day)
-  const score = recoveryScore({ sleep, restingHr, baselineHr: base.restingHr })
-  return {
-    d: day, sleep: sleep ? { deep: sleep.deep, light: sleep.light, rem: sleep.rem, awake: sleep.awake, total: sleep.total, efficiency: sleep.efficiency } : null,
-    restingHr, steps: stepsOf(samples, day), score, readiness: readinessOf(score),
-    flags: flagsOf({ sleep, restingHr }, base), _ts: Date.now()
-  }
+  return { days: rows.length, restingHr: avg(r => r.restingHr), sleepMin: avg(r => r.sleep?.total), deepRemMin: avg(r => (r.sleep ? r.sleep.deep + r.sleep.rem : null)), score: avg(r => r.score), steps: avg(r => r.steps), hrv: avg(r => r.hrv) }
 }
 
 /** What is off today, in words the card and the Coach both use. */
-export function flagsOf({ sleep, restingHr }, base) {
+export function flagsOf({ sleep, restingHr, hrv }, base) {
   const f = []
   if (Number.isFinite(restingHr) && Number.isFinite(base?.restingHr) && restingHr - base.restingHr >= 3) f.push('rhrElevated')
   if (sleep && sleep.total < 360) f.push('sleepShort')
   if (sleep && Number.isFinite(base?.deepRemMin) && base.deepRemMin > 0 && (sleep.deep + sleep.rem) < base.deepRemMin * 0.7) f.push('deepRemLow')
   if (sleep && sleep.efficiency < 0.8) f.push('restless')
+  if (Number.isFinite(hrv) && Number.isFinite(base?.hrv) && base.hrv > 0 && hrv < base.hrv * 0.75) f.push('hrvLow')
   return f
 }
 
 /** The card's one line: what to do with today's session, from the score and the flags. */
 export function adviceOf(reading) {
   if (!reading || reading.score == null) return 'none'
-  if (reading.readiness === 'low' || (reading.flags.includes('rhrElevated') && reading.flags.includes('sleepShort'))) return 'deload'
-  if (reading.readiness === 'moderate' || reading.flags.length) return 'easy'
+  const f = reading.flags || []
+  if (reading.readiness === 'low' || (f.includes('rhrElevated') && (f.includes('sleepShort') || f.includes('hrvLow')))) return 'deload'
+  if (reading.readiness === 'moderate' || f.length) return 'easy'
   return 'go'
+}
+
+/** One day's reading from what Health Connect returned, against the days before it. */
+export function dayReading(data, day, biometrics = {}) {
+  const sleep = sleepOf(data?.sleep, nightWindow(day))
+  const restingHr = restingHrOf(data || {}, day)
+  const hrv = hrvOf(data?.hrv, day)
+  const base = baselineOf(biometrics, day)
+  const score = recoveryScore({ sleep, restingHr, baselineHr: base.restingHr })
+  const r = {
+    d: day, sleep: sleep ? { deep: sleep.deep, light: sleep.light, rem: sleep.rem, awake: sleep.awake, total: sleep.total, efficiency: sleep.efficiency } : null,
+    restingHr, hrv, steps: stepsOf(data?.steps, day), score, readiness: readinessOf(score), flags: [], _ts: Date.now()
+  }
+  r.flags = flagsOf({ sleep, restingHr, hrv }, base)
+  return r
 }
 
 /** Writes a reading into the state, keeping KEEP_DAYS days. */
@@ -183,8 +193,7 @@ export function recordReading(s, reading) {
 
 /**
  * The payload shape the Coach reads (api/coach/core/payload.js biometricsOf mirrors it): today,
- * the baseline, and the flags. Exported so a test can build the mock the task asks for without a
- * database at all.
+ * the baseline, and the flags. Exported so a test can build the mock without Health Connect.
  */
 export function coachView(biometrics, day) {
   const today = biometrics?.[day] || null
@@ -192,7 +201,7 @@ export function coachView(biometrics, day) {
   const base = baselineOf(biometrics, day)
   return {
     day,
-    today: today ? { score: today.score, readiness: today.readiness, restingHr: today.restingHr, steps: today.steps, sleep: today.sleep, flags: today.flags } : null,
+    today: today ? { score: today.score, readiness: today.readiness, restingHr: today.restingHr, hrv: today.hrv, steps: today.steps, sleep: today.sleep, flags: today.flags } : null,
     baseline: base,
     advice: adviceOf(today)
   }

@@ -2428,5 +2428,5 @@ export default {
   'Your nutrition log': 'บันทึกโภชนาการของคุณ',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'มื้ออาหารที่คุณบันทึกด้วยคำของคุณเองพร้อมตัวเลข น้ำที่ดื่ม และเป้าหมายแคลอรีกับสารอาหารหลัก — วันนี้และสัปดาห์ก่อนหน้า',
   'Your band’s readings': 'ค่าที่อ่านจากสายรัดของคุณ',
-  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'การนอนตามระยะ อัตราการเต้นหัวใจขณะพัก จำนวนก้าว และคะแนนการฟื้นตัวจาก Gadgetbridge — วันนี้และสัปดาห์ก่อนหน้า เฉพาะเมื่อเชื่อมต่อสายรัดแล้ว',
+  'Sleep by stage, resting heart rate, HRV, steps and the recovery score from Health Connect — today and the week before, only once the recovery engine is on.': 'การนอนตามระยะ อัตราการเต้นหัวใจขณะพัก จำนวนก้าว และคะแนนการฟื้นตัวจาก Health Connect — วันนี้และสัปดาห์ก่อนหน้า เฉพาะเมื่อเชื่อมต่อสายรัดแล้ว',
 }

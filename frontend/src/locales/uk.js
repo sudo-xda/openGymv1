@@ -2414,5 +2414,5 @@ export default {
   'Your nutrition log': 'Ваш щоденник харчування',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'Прийоми їжі, записані вашими словами, з їхніми цифрами, ваша вода та ваші цілі з калорій і макросів — сьогодні й за тиждень до того.',
   'Your band’s readings': 'Показники вашого браслета',
-  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'Сон за фазами, пульс у спокої, кроки та оцінка відновлення з Gadgetbridge — сьогодні й за тиждень до того, лише з підключеним браслетом.',
+  'Sleep by stage, resting heart rate, HRV, steps and the recovery score from Health Connect — today and the week before, only once the recovery engine is on.': 'Сон за фазами, пульс у спокої, кроки та оцінка відновлення з Health Connect — сьогодні й за тиждень до того, лише з підключеним браслетом.',
 }

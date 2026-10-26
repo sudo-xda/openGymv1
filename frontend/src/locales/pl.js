@@ -2417,5 +2417,5 @@ export default {
   'Your nutrition log': 'Twój dziennik żywienia',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'Posiłki, które zapisałeś własnymi słowami, wraz z ich liczbami, Twoja woda oraz cele kalorii i makroskładników – dziś i w poprzednim tygodniu.',
   'Your band’s readings': 'Odczyty Twojej opaski',
-  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'Sen według faz, tętno spoczynkowe, kroki i wynik regeneracji z Gadgetbridge – dziś i w poprzednim tygodniu, tylko po podłączeniu opaski.',
+  'Sleep by stage, resting heart rate, HRV, steps and the recovery score from Health Connect — today and the week before, only once the recovery engine is on.': 'Sen według faz, tętno spoczynkowe, kroki i wynik regeneracji z Health Connect – dziś i w poprzednim tygodniu, tylko po podłączeniu opaski.',
 }

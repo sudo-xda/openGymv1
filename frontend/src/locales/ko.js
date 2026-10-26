@@ -2417,5 +2417,5 @@ export default {
   'Your nutrition log': '영양 기록',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': '직접 적은 식사와 그 수치, 물 섭취량, 칼로리와 매크로 목표 — 오늘과 지난 한 주.',
   'Your band’s readings': '밴드 측정값',
-  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'Gadgetbridge의 단계별 수면, 안정 시 심박수, 걸음 수, 회복 점수 — 오늘과 지난 한 주, 밴드를 연결한 경우에만.',
+  'Sleep by stage, resting heart rate, HRV, steps and the recovery score from Health Connect — today and the week before, only once the recovery engine is on.': 'Health Connect의 단계별 수면, 안정 시 심박수, 걸음 수, 회복 점수 — 오늘과 지난 한 주, 밴드를 연결한 경우에만.',
 }

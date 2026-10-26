@@ -2472,5 +2472,5 @@ export default {
   'Your nutrition log': 'سجل تغذيتك',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'الوجبات التي سجّلتها بكلماتك وأرقامها، وماؤك، وأهداف السعرات والمغذيات الكبرى — اليوم والأسبوع الذي قبله.',
   'Your band’s readings': 'قراءات سوارك',
-  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'النوم حسب مراحله، ومعدل ضربات القلب أثناء الراحة، والخطوات، ودرجة التعافي من Gadgetbridge — اليوم والأسبوع الذي قبله، فقط بعد توصيل سوار.',
+  'Sleep by stage, resting heart rate, HRV, steps and the recovery score from Health Connect — today and the week before, only once the recovery engine is on.': 'النوم حسب مراحله، ومعدل ضربات القلب أثناء الراحة، والخطوات، ودرجة التعافي من Health Connect — اليوم والأسبوع الذي قبله، فقط بعد توصيل سوار.',
 }

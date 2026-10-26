@@ -2417,5 +2417,5 @@ export default {
   'Your nutrition log': 'Ton journal nutritionnel',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'Les repas que tu as notés, avec tes mots et leurs chiffres, ton eau et tes objectifs de calories et de macros — aujourd’hui et la semaine d’avant.',
   'Your band’s readings': 'Les mesures de ton bracelet',
-  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'Sommeil par phases, fréquence cardiaque au repos, pas et score de récupération issus de Gadgetbridge — aujourd’hui et la semaine d’avant, seulement une fois un bracelet connecté.',
+  'Sleep by stage, resting heart rate, HRV, steps and the recovery score from Health Connect — today and the week before, only once the recovery engine is on.': 'Sommeil par phases, fréquence cardiaque au repos, pas et score de récupération issus de Health Connect — aujourd’hui et la semaine d’avant, seulement une fois un bracelet connecté.',
 }

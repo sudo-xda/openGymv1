@@ -427,40 +427,39 @@ archives them unsigned and the release machine finishes, signs and uploads them
   rest-over alarm is only its fallback.
 
 
-## A band through Gadgetbridge (Android)
+## Recovery from Health Connect (Android)
 
-The Android app can read a Mi Band (or any band Gadgetbridge supports) as a recovery signal:
-sleep by stage, the resting heart rate, steps, and a 0–100 recovery score, on a Recovery card at
-the top of Home and in the Coach's context. Nothing talks to the band directly — Gadgetbridge
-does — and nothing leaves the phone except what the Coach is told, which is a new consent
-category.
+The Android app can read a band as a recovery signal — sleep by stage, the resting heart rate,
+heart-rate variability, steps, and a 0–100 recovery score — on a Recovery card at the top of
+Home and in the Coach's context. Nothing talks to the band: whatever app the band syncs to (Zepp
+Life, Mi Fitness, Gadgetbridge's Health Connect writer, Garmin, Samsung Health…) writes to Health
+Connect, and openGym reads from there, with permissions of its own that are asked for only when
+the engine is turned on.
 
-How it works:
+Turn it on under Settings → **Recovery from Health Connect**. Health Connect asks once for
+sleep, heart rate, resting heart rate, steps and HRV (HRV is optional: a band without it still
+works). From then on the first open of every day reads the night, and **Refresh** on the card
+or **Read now** in Settings read on demand, for instance before a workout. The same plugin that
+writes workouts and weigh-ins (`HealthConnectPlugin.java`) does the reading
+(`readRecovery`): sleep sessions with their stages, resting-heart-rate records, heart-rate
+samples, step records and HRV for the last three days, returned raw and logged
+(`adb logcat -s openGym/HealthConnect`).
 
-1. Install [Gadgetbridge](https://gadgetbridge.org) and pair the band in it.
-2. In Gadgetbridge, turn on the database **auto-export** (Settings → Data management →
-   Auto export, with a location and an interval), or export by hand after a sync. That export is
-   the file openGym reads; it never opens Gadgetbridge's own database.
-3. In openGym, Settings → **Band (Gadgetbridge)** → **Choose the export file**, and pick the
-   exported database. The read right is kept on this phone only (Storage Access Framework).
-4. Every first open of the day the app sends Gadgetbridge a sync broadcast
-   (`nodomain.freeyourgadget.gadgetbridge.command.ACTIVITY_SYNC`), waits a moment, reads the
-   export and writes the day's reading. **Refresh** on the card and **Sync now** in Settings do
-   the same on demand, for instance before a workout. A missing Gadgetbridge is an answer, not a
-   crash: the broadcast is skipped and the Settings section says it is not installed.
+What is computed (`frontend/src/lib/biometrics.js`, unit-tested; the page logs the parsed
+reading as `[recovery]`): the night before the day is 20:00 to noon, local time; every sleep
+session touching it is clipped to it and its stages summed into deep, light, REM and awake
+minutes (Health Connect's own stage codes; a session without stages counts as light sleep);
+efficiency is asleep over in bed. The resting heart rate is the band app's own figure for the
+day when it wrote one, else the lowest rolling median of five heart-rate samples inside the
+night's sleep sessions. Steps are the day's records, pro rata across midnight; HRV is the night's
+mean RMSSD. The score weighs duration against 7.5 h (40), deep + REM against 40 % of sleep (20),
+the resting heart rate against the seven-day average (30), and efficiency (10). Flags —
+resting heart rate up, short sleep, little deep/REM, restless, HRV down — turn into one line on
+the card: green light, train but easy, or deload.
 
-What is computed (`frontend/src/lib/biometrics.js`, unit-tested): the night before the day is
-20:00 to noon; sleep blocks are runs of sleep samples, with wakes under 30 minutes kept inside
-a block; deep, light, REM and awake minutes come from the sample's raw kind (the Mi Band 5
-codes 89–92 and the Huami provider's own; the table is `SLEEP_KINDS`); the resting heart rate
-is the lowest rolling median of five inside the sleep blocks, ignoring 255 (off wrist) and
-anything outside 30–200; steps are the day's sum. The score weighs duration against 7.5 h,
-deep + REM against 40 % of sleep, the resting heart rate against the seven-day average, and
-efficiency. The Coach is given today against that baseline with the flags and an advice word,
-and its prompts carry the auto-regulation protocol: a resting heart rate above the baseline or
-deep and REM sleep well under it means it must suggest the adjustment — about 15% off the
-working weights, fewer sets, nothing to failure, or a lighter day.
-
-What the plugin logs (`adb logcat -s openGym/Gadgetbridge`): whether the sync broadcast went,
-and for every read the table, the sample count and how many samples had no valid heart rate.
-The page logs the parsed reading (`[gadgetbridge]` in the WebView console).
+The Coach is given today against that baseline with the flags and the advice word, as a new
+consent category, and its prompts carry the auto-regulation protocol: a resting heart rate above
+the baseline, HRV down, or deep and REM sleep well under the baseline means it must suggest the
+adjustment — about 15% off the working weights, fewer sets, nothing to failure, or a lighter
+day. Readings are kept per day for ninety days and merge per day across devices; only the
+Android app ever writes one.

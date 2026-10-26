@@ -2420,5 +2420,5 @@ export default {
   'Your nutrition log': 'Az étkezési naplód',
   'Meals you logged, in your words and their numbers, your water, and your calorie and macro targets — today and the week before.': 'A saját szavaiddal rögzített étkezéseid és a számaik, a vízfogyasztásod, valamint a kalória- és makrocéljaid – ma és az azt megelőző héten.',
   'Your band’s readings': 'A karkötőd mérései',
-  'Sleep by stage, resting heart rate, steps and the recovery score from Gadgetbridge — today and the week before, only once a band is connected.': 'Alvás szakaszonként, nyugalmi pulzus, lépések és a regenerációs pontszám a Gadgetbridge-ből – ma és az azt megelőző héten, csak csatlakoztatott karkötővel.',
+  'Sleep by stage, resting heart rate, HRV, steps and the recovery score from Health Connect — today and the week before, only once the recovery engine is on.': 'Alvás szakaszonként, nyugalmi pulzus, lépések és a regenerációs pontszám a Health Connect-ből – ma és az azt megelőző héten, csak csatlakoztatott karkötővel.',
 }

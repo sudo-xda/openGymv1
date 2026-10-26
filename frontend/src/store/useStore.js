@@ -101,10 +101,10 @@ export const DEF = {
   // purpose — what the Coach is told to call you (payload coachProfile.name). Never the account
   // name, which stays out of every payload.
   displayName: '',
-  // The band's readings by day (lib/biometrics.js): sleep, resting heart rate, steps, score. A
-  // stamped map, merged per day across devices; the reading itself only ever comes from the
-  // Android app that holds the Gadgetbridge export. `biometricsAuto` is the morning reading.
-  biometrics: {}, biometricsAuto: true,
+  // The recovery engine (lib/recovery-engine.js, Android): readings by day from Health Connect
+  // (lib/biometrics.js) — a stamped map, merged per day across devices; recoveryOn is the
+  // switch in Settings, recoveryAuto the morning reading.
+  biometrics: {}, recoveryOn: false, recoveryAuto: true,
   queue: null,   // a planner's floating week (lib/queue.js) — via the API, or by this rotation feature (below)
   // The in-app rotation's reusable definition — { id, sequence, label } (lib/rotation.js). Never
   // a live queue: it only ever feeds `queue`, and `queue.rotationId` says the pass is managed here.

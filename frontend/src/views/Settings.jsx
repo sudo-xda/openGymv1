@@ -7,7 +7,9 @@ import { speedUnitOf } from '../lib/speed.js'
 import { formulaOf, FORMULA_NAMES } from '../lib/onerm.js'
 import { copyText } from '../lib/clipboard.js'
 import { useUI } from '../store/useUI.js'
-import { available, status, pickDatabase, forget, refreshBiometrics } from '../lib/gadgetbridge.js'
+import { recoveryStatus, requestRecoveryPermissions } from '../lib/health-sync.js'
+import { refreshRecovery } from '../lib/recovery-engine.js'
+import { refreshToast } from '../components/RecoveryCard.jsx'
 import { ACCENTS, ACCENT_NAMES, todayISO, localTZ, weekStartOf, MONDAY, SUNDAY, fmtPlate } from '../lib/format.js'
 import { inventoryFor, ownsPlates } from '../lib/plates.js'
 import { BAR_TYPES, ownBarDefault } from '../lib/bar.js'
@@ -814,7 +816,7 @@ export default function Settings({ page = null, find = null, via = null, entryKe
             style={{ width: 150, textAlign: 'end' }} />
         </Row>
       </Section>
-      <BandSection S={S} update={update} />
+      <RecoverySection S={S} update={update} />
       <Section title={t('On Home')}>
         {/* Membership QR codes on Home (views/CheckIn.jsx); off = no Home card, no route. */}
         <Row icon="qr" iconTint="var(--blue)" title={t('Gym check-in')}
@@ -1610,35 +1612,36 @@ function HealthConnectCard({ S, toast, android }) {
   )
 }
 
-/* ---------- the band, through Gadgetbridge (Android only; lib/gadgetbridge.js) ---------- */
-function BandSection({ S, update }) {
+/* ---------- the recovery engine, from Health Connect (Android only; lib/recovery-engine.js) ---------- */
+function RecoverySection({ S, update }) {
   const toast = useUI(s => s.toast)
   const [st, setSt] = useState(null)      // null: not the Android app, or not asked yet
   const [busy, setBusy] = useState(false)
-  const load = () => available().then(ok => (ok ? status().then(setSt) : setSt(null)))
+  const load = () => recoveryStatus().then(s => setSt(s.status === 'unsupported' ? null : s))
   useEffect(() => { load() }, [])
   if (!st) return null
-  const pick = async () => {
-    const r = await pickDatabase().catch(() => null)
-    if (r) { toast(t('Export chosen: {0}', r.name || '')); load() }
-  }
-  const syncNow = async () => {
+  const turnOn = async v => {
+    if (!v) { update(s => { s.recoveryOn = false }); return }
+    if (st.status !== 'available') { toast(st.status === 'update' ? t('Update Health Connect first.') : t('Install Health Connect first.')); return }
+    let ok = st.readGranted
+    if (!ok) { try { ok = !!(await requestRecoveryPermissions()).readGranted } catch { ok = false } }
+    if (!ok) { toast(t('Reading was not allowed. Allow sleep, heart rate and steps in Health Connect.')); load(); return }
+    update(s => { s.recoveryOn = true })
+    load()
     setBusy(true)
-    const r = await refreshBiometrics({ withSync: true })
+    const r = await refreshRecovery()
     setBusy(false)
-    toast(r.ok ? t('Recovery updated') : r.reason === 'nodb' ? t('Choose the export file first.') : r.reason === 'nosleep' ? t('No night in the export yet. Sync the band and export again.') : r.reason === 'nosamples' ? t('The export has no recent samples.') : t('Could not read the band’s data.'))
+    toast(refreshToast(r))
   }
-  const forgetIt = () => confirmSheet({
-    title: t('Disconnect the band?'), message: t('The export file is forgotten on this phone. Readings already kept stay.'), confirmText: t('Disconnect'), danger: true,
-    onConfirm: async () => { await forget(); load(); toast(t('Band disconnected')) }
-  })
-  return <Section title={t('Band (Gadgetbridge)')} footer={t('Sleep, resting heart rate and steps from a Mi Band or any band Gadgetbridge supports, read from Gadgetbridge’s exported database. Turn on its auto-export, then choose that file here.')}>
-    <Row icon="watch" iconTint={st.installed ? 'var(--green)' : 'var(--label-3)'} title={t('Gadgetbridge')} value={st.installed ? t('Installed') : t('Not installed')} />
-    <Row icon="folder" iconTint="var(--blue)" title={st.hasDatabase ? t('Export file') : t('Choose the export file')} subtitle={st.hasDatabase ? (st.name || t('chosen')) : t('The database Gadgetbridge exports')} accessory="chevron" onClick={pick} />
-    {st.hasDatabase && <Row icon="repeat" iconTint="var(--acc)" title={busy ? t('Syncing…') : t('Sync now')} subtitle={t('Ask Gadgetbridge for the band’s data and read the export')} accessory="chevron" onClick={busy ? undefined : syncNow} />}
-    {st.hasDatabase && <Row icon="sunrise" iconTint="var(--yellow)" title={t('Morning reading')} subtitle={t('Read the night on the first open of the day')}>
-      <Switch checked={S.biometricsAuto !== false} onChange={v => update(s => { s.biometricsAuto = v })} />
+  const readNow = async () => { setBusy(true); const r = await refreshRecovery(); setBusy(false); toast(refreshToast(r)); load() }
+  return <Section title={t('Recovery from Health Connect')} footer={t('Sleep by stage, resting heart rate, HRV and steps, as your band’s app writes them to Health Connect. Read once a day on the first open and whenever you refresh; the Coach reads the same numbers.')}>
+    <Row icon="heart" iconTint="var(--red)" title={t('Recovery engine')} subtitle={st.status === 'available' ? (st.readGranted ? t('Reading allowed') : t('Reading not allowed yet')) : st.status === 'update' ? t('Health Connect needs an update') : t('Health Connect is not installed')}>
+      <Switch checked={S.recoveryOn === true} onChange={turnOn} />
+    </Row>
+    {S.recoveryOn === true && <Row icon="repeat" iconTint="var(--acc)" title={busy ? t('Reading…') : t('Read now')} subtitle={t('Today’s night, resting heart rate and steps')} accessory="chevron" onClick={busy ? undefined : readNow} />}
+    {S.recoveryOn === true && <Row icon="sunrise" iconTint="var(--yellow)" title={t('Morning reading')} subtitle={t('Read the night on the first open of the day')}>
+      <Switch checked={S.recoveryAuto !== false} onChange={v => update(s => { s.recoveryAuto = v })} />
     </Row>}
-    {st.hasDatabase && <Row icon="trash" iconTint="var(--red)" title={t('Disconnect')} danger onClick={forgetIt} />}
+    {!st.readGranted && st.status === 'available' && <Row icon="key" iconTint="var(--blue)" title={t('Allow reading')} subtitle={t('Sleep, heart rate, resting heart rate, steps, HRV')} accessory="chevron" onClick={() => requestRecoveryPermissions().then(load).catch(() => {})} />}
   </Section>
 }

@@ -778,20 +778,20 @@ export function nutritionOf(S, on) {
 }
 
 /* ---------- the band ----------
-   S.biometrics (frontend/src/lib/biometrics.js): one reading per day — sleep in minutes by
-   stage, the resting heart rate, steps, the 0–100 score and the flags the app raised. The Coach
-   gets today against the seven days before it, bounded like everything else; nothing when the
-   profile never had a band. The shape mirrors the app's own coachView, so a mock built from
-   that function tests the injection without a database. */
+   S.biometrics (frontend/src/lib/biometrics.js): one reading per day from Health Connect —
+   sleep in minutes by stage, the resting heart rate, the night's HRV, steps, the 0–100 score and
+   the flags the app raised. The Coach gets today against the seven days before it, bounded like
+   everything else; nothing when the profile never had a band. The shape mirrors the app's own
+   coachView, so a mock built from it tests the injection without Health Connect at all. */
 export const BIOMETRIC_DAYS = 7;
 const clampN = (v, lo, hi) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, Math.round(n * 10) / 10)) : null; };
-const FLAGS = ['rhrElevated', 'sleepShort', 'deepRemLow', 'restless'];
+const FLAGS = ['rhrElevated', 'sleepShort', 'deepRemLow', 'restless', 'hrvLow'];
 function cleanReading(r) {
   if (!r || typeof r !== 'object') return null;
   const s = r.sleep && typeof r.sleep === 'object' ? r.sleep : null;
   return {
     score: clampN(r.score, 0, 100), readiness: ['ready', 'moderate', 'low'].includes(r.readiness) ? r.readiness : null,
-    restingHr: clampN(r.restingHr, 20, 250), steps: clampN(r.steps, 0, 200000),
+    restingHr: clampN(r.restingHr, 20, 250), hrv: clampN(r.hrv, 0, 500), steps: clampN(r.steps, 0, 200000),
     sleep: s ? { total: clampN(s.total, 0, 1440), deep: clampN(s.deep, 0, 1440), light: clampN(s.light, 0, 1440), rem: clampN(s.rem, 0, 1440), awake: clampN(s.awake, 0, 1440), efficiency: clampN(s.efficiency, 0, 1) } : null,
     flags: Array.isArray(r.flags) ? r.flags.filter(f => FLAGS.includes(f)) : []
   };
@@ -805,9 +805,10 @@ export function biometricsOf(S, on) {
   const cur = new Date(d + 'T12:00:00');
   for (let i = 1; i <= BIOMETRIC_DAYS; i++) { cur.setDate(cur.getDate() - 1); const r = cleanReading(all[iso(cur)]); if (r) days.push(r); }
   const avg = pick => { const v = days.map(pick).filter(n => Number.isFinite(n)); return v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10 : null; };
-  const baseline = { days: days.length, restingHr: avg(r => r.restingHr), sleepMin: avg(r => r.sleep && r.sleep.total), deepRemMin: avg(r => (r.sleep ? r.sleep.deep + r.sleep.rem : null)), score: avg(r => r.score), steps: avg(r => r.steps) };
+  const baseline = { days: days.length, restingHr: avg(r => r.restingHr), hrv: avg(r => r.hrv), sleepMin: avg(r => r.sleep && r.sleep.total), deepRemMin: avg(r => (r.sleep ? r.sleep.deep + r.sleep.rem : null)), score: avg(r => r.score), steps: avg(r => r.steps) };
+  const f = today ? today.flags : [];
   const advice = !today || today.score == null ? 'none'
-    : today.readiness === 'low' || (today.flags.includes('rhrElevated') && today.flags.includes('sleepShort')) ? 'deload'
-      : today.readiness === 'moderate' || today.flags.length ? 'easy' : 'go';
+    : today.readiness === 'low' || (f.includes('rhrElevated') && (f.includes('sleepShort') || f.includes('hrvLow'))) ? 'deload'
+      : today.readiness === 'moderate' || f.length ? 'easy' : 'go';
   return { day: d, today, baseline, advice };
 }

@@ -8,10 +8,19 @@ import androidx.activity.result.contract.ActivityResultContract;
 import androidx.health.connect.client.HealthConnectClient;
 import androidx.health.connect.client.PermissionController;
 import androidx.health.connect.client.records.ExerciseSessionRecord;
+import androidx.health.connect.client.records.HeartRateRecord;
+import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord;
 import androidx.health.connect.client.records.Record;
+import androidx.health.connect.client.records.RestingHeartRateRecord;
+import androidx.health.connect.client.records.SleepSessionRecord;
+import androidx.health.connect.client.records.StepsRecord;
 import androidx.health.connect.client.records.WeightRecord;
 import androidx.health.connect.client.records.metadata.Metadata;
+import androidx.health.connect.client.request.ReadRecordsRequest;
+import androidx.health.connect.client.response.ReadRecordsResponse;
+import androidx.health.connect.client.time.TimeRangeFilter;
 import androidx.health.connect.client.units.Mass;
+import android.util.Log;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -67,8 +76,21 @@ public class HealthConnectPlugin extends Plugin {
     // The literal permission names, as declared in AndroidManifest.xml.
     private static final String WRITE_EXERCISE = "android.permission.health.WRITE_EXERCISE";
     private static final String WRITE_WEIGHT = "android.permission.health.WRITE_WEIGHT";
+    // Reading the band's night and day for the recovery engine (lib/biometrics.js): a separate
+    // set, asked for only when the person turns the Recovery card on. Everything a band app
+    // writes to Health Connect — sleep with its stages, the heart rate and the resting heart rate,
+    // steps, heart-rate variability — and nothing else.
+    private static final String READ_SLEEP = "android.permission.health.READ_SLEEP";
+    private static final String READ_HEART_RATE = "android.permission.health.READ_HEART_RATE";
+    private static final String READ_RESTING_HEART_RATE = "android.permission.health.READ_RESTING_HEART_RATE";
+    private static final String READ_STEPS = "android.permission.health.READ_STEPS";
+    private static final String READ_HRV = "android.permission.health.READ_HEART_RATE_VARIABILITY";
+    private static final String TAG = "openGym/HealthConnect";
     // Health Connect takes at most this many records in one insert.
     private static final int CHUNK = 500;
+    private static final int PAGE = 1000;
+    private static final int MAX_READ_DAYS = 14;
+    private static final int MAX_SAMPLES = 40000;
 
     // One at a time, in order: a remove queued behind a write must not overtake it.
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -81,6 +103,22 @@ public class HealthConnectPlugin extends Plugin {
         Set<String> p = new HashSet<>();
         p.add(WRITE_EXERCISE);
         p.add(WRITE_WEIGHT);
+        return p;
+    }
+
+    private static Set<String> readPermissions() {
+        Set<String> p = new HashSet<>();
+        p.add(READ_SLEEP);
+        p.add(READ_HEART_RATE);
+        p.add(READ_RESTING_HEART_RATE);
+        p.add(READ_STEPS);
+        p.add(READ_HRV);
+        return p;
+    }
+    // The optional one: a band without HRV must not block the rest.
+    private static Set<String> requiredReadPermissions() {
+        Set<String> p = readPermissions();
+        p.remove(READ_HRV);
         return p;
     }
 
@@ -117,8 +155,10 @@ public class HealthConnectPlugin extends Plugin {
         worker.execute(() -> {
             try {
                 JSObject r = new JSObject();
+                Set<String> g = granted();
                 r.put("status", status);
-                r.put("granted", granted().containsAll(permissions()));
+                r.put("granted", g.containsAll(permissions()));
+                r.put("readGranted", g.containsAll(requiredReadPermissions()));
                 call.resolve(r);
             } catch (Exception e) {
                 call.reject(e.getMessage(), "failed");
@@ -201,6 +241,150 @@ public class HealthConnectPlugin extends Plugin {
                 call.reject(e.getMessage(), "failed");
             }
         });
+    }
+
+    /* ---------- reading the band's night and day (the recovery engine) ---------- */
+
+    @PluginMethod
+    public void requestReadPermissions(PluginCall call) {
+        if (!"available".equals(sdkStatus())) {
+            call.reject("Health Connect is not available", "unavailable");
+            return;
+        }
+        ActivityResultContract<Set<String>, Set<String>> contract = PermissionController.createRequestPermissionResultContract(PROVIDER);
+        Intent intent = contract.createIntent(getContext(), readPermissions());
+        startActivityForResult(call, intent, "readPermissionsResult");
+    }
+
+    @ActivityCallback
+    private void readPermissionsResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        worker.execute(() -> {
+            try {
+                JSObject r = new JSObject();
+                r.put("readGranted", granted().containsAll(requiredReadPermissions()));
+                call.resolve(r);
+            } catch (Exception e) {
+                call.reject(e.getMessage(), "failed");
+            }
+        });
+    }
+
+    /**
+     * Everything the recovery engine reads, for the last `days` days, as plain rows; what they
+     * mean (the night, the resting heart rate, the score) is worked out in lib/biometrics.js.
+     *   sleep:     [{ start, end, stages: [[start, end, stage], …] }]   stage: Health Connect's own code
+     *   restingHr: [[time, bpm]]
+     *   hr:        [[time, bpm]]                                        every sample, bounded
+     *   steps:     [[start, end, count]]
+     *   hrv:       [[time, rmssdMs]]
+     * Times are epoch milliseconds.
+     */
+    @PluginMethod
+    public void readRecovery(PluginCall call) {
+        if (!"available".equals(sdkStatus())) {
+            call.reject("Health Connect is not available", "unavailable");
+            return;
+        }
+        final int days = Math.max(1, Math.min(MAX_READ_DAYS, call.getInt("days", 3)));
+        worker.execute(() -> {
+            try {
+                Instant end = Instant.now();
+                Instant start = end.minusSeconds((long) days * 86400L);
+                TimeRangeFilter range = TimeRangeFilter.Companion.between(start, end);
+                JSObject out = new JSObject();
+
+                JSArray sleep = new JSArray();
+                for (Record rec : readAll(SleepSessionRecord.class, range)) {
+                    SleepSessionRecord s = (SleepSessionRecord) rec;
+                    JSObject o = new JSObject();
+                    o.put("start", s.getStartTime().toEpochMilli());
+                    o.put("end", s.getEndTime().toEpochMilli());
+                    JSArray stages = new JSArray();
+                    for (SleepSessionRecord.Stage st : s.getStages()) {
+                        JSArray row = new JSArray();
+                        row.put(st.getStartTime().toEpochMilli());
+                        row.put(st.getEndTime().toEpochMilli());
+                        row.put(st.getStage());
+                        stages.put(row);
+                    }
+                    o.put("stages", stages);
+                    sleep.put(o);
+                }
+                out.put("sleep", sleep);
+
+                JSArray resting = new JSArray();
+                for (Record rec : readAll(RestingHeartRateRecord.class, range)) {
+                    RestingHeartRateRecord r = (RestingHeartRateRecord) rec;
+                    JSArray row = new JSArray();
+                    row.put(r.getTime().toEpochMilli());
+                    row.put(r.getBeatsPerMinute());
+                    resting.put(row);
+                }
+                out.put("restingHr", resting);
+
+                JSArray hr = new JSArray();
+                int n = 0;
+                for (Record rec : readAll(HeartRateRecord.class, range)) {
+                    for (HeartRateRecord.Sample smp : ((HeartRateRecord) rec).getSamples()) {
+                        if (n++ >= MAX_SAMPLES) break;
+                        JSArray row = new JSArray();
+                        row.put(smp.getTime().toEpochMilli());
+                        row.put(smp.getBeatsPerMinute());
+                        hr.put(row);
+                    }
+                }
+                out.put("hr", hr);
+
+                JSArray steps = new JSArray();
+                for (Record rec : readAll(StepsRecord.class, range)) {
+                    StepsRecord s = (StepsRecord) rec;
+                    JSArray row = new JSArray();
+                    row.put(s.getStartTime().toEpochMilli());
+                    row.put(s.getEndTime().toEpochMilli());
+                    row.put(s.getCount());
+                    steps.put(row);
+                }
+                out.put("steps", steps);
+
+                JSArray hrv = new JSArray();
+                try {
+                    for (Record rec : readAll(HeartRateVariabilityRmssdRecord.class, range)) {
+                        HeartRateVariabilityRmssdRecord h = (HeartRateVariabilityRmssdRecord) rec;
+                        JSArray row = new JSArray();
+                        row.put(h.getTime().toEpochMilli());
+                        row.put(h.getHeartRateVariabilityMillis());
+                        hrv.put(row);
+                    }
+                } catch (SecurityException e) {
+                    // HRV is optional: a phone that did not grant it still gets the rest.
+                }
+                out.put("hrv", hrv);
+                out.put("days", days);
+                Log.d(TAG, "readRecovery: " + sleep.length() + " sleep sessions, " + resting.length() + " resting HR, " + hr.length() + " HR samples, " + steps.length() + " step records, " + hrv.length() + " HRV in " + days + " days");
+                call.resolve(out);
+            } catch (SecurityException e) {
+                call.reject(e.getMessage(), "permission");
+            } catch (Exception e) {
+                Log.d(TAG, "readRecovery failed: " + e.getMessage());
+                call.reject(e.getMessage(), "failed");
+            }
+        });
+    }
+
+    /** Every record of a type in the range, page after page. */
+    @SuppressWarnings("unchecked")
+    private <T extends Record> List<Record> readAll(Class<T> type, TimeRangeFilter range) throws InterruptedException {
+        List<Record> out = new ArrayList<>();
+        String token = null;
+        do {
+            final String page = token;
+            ReadRecordsRequest<T> req = new ReadRecordsRequest<>(JvmClassMappingKt.getKotlinClass(type), range, Collections.emptySet(), true, PAGE, page);
+            ReadRecordsResponse<T> res = (ReadRecordsResponse<T>) BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE, (scope, cont) -> client().readRecords(req, cont));
+            out.addAll(res.getRecords());
+            token = res.getPageToken();
+        } while (token != null && out.size() < MAX_SAMPLES);
+        return out;
     }
 
     // Health Connect's own screen for the data apps wrote, where the user can look at and delete
