@@ -483,12 +483,12 @@ public class HealthConnectPlugin extends Plugin {
         try { return reader.read(); }
         catch (SecurityException e) { denied.put(name); return new JSArray(); }
     }
-    private static JSArray rows2(List<Record> recs, L t, D v) {
+    private static JSArray rows2(List<Record> recs, L t, D v) throws JSONException {
         JSArray out = new JSArray();
         for (Record r : recs) { JSArray row = new JSArray(); row.put(t.of(r)); row.put(v.of(r)); out.put(row); }
         return out;
     }
-    private static JSArray rows3(List<Record> recs, L a, L b, D v) {
+    private static JSArray rows3(List<Record> recs, L a, L b, D v) throws JSONException {
         JSArray out = new JSArray();
         for (Record r : recs) { JSArray row = new JSArray(); row.put(a.of(r)); row.put(b.of(r)); row.put(v.of(r)); out.put(row); }
         return out;
@@ -534,7 +534,7 @@ public class HealthConnectPlugin extends Plugin {
         }
         return out;
     }
-    private static JSArray bpRows(List<Record> recs) {
+    private static JSArray bpRows(List<Record> recs) throws JSONException {
         JSArray out = new JSArray();
         for (Record rec : recs) {
             BloodPressureRecord b = (BloodPressureRecord) rec;
