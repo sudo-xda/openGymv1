@@ -64,7 +64,10 @@ export function summarizeDay(data, day) {
     .filter(e => e && e.start != null && e.end != null && e.end > e.start && clip(e.start, e.end, w) > 0)
     .map(e => {
       const inside = hrAll.filter(x => x.t >= e.start && x.t <= e.end).map(x => x.v)
-      return { ...e, minutes: Math.round((e.end - e.start) / 60000), name: exerciseName(e.type), ...(inside.length ? { hrAvg: Math.round(inside.reduce((a, b) => a + b, 0) / inside.length), hrMax: Math.round(Math.max(...inside)) } : {}) }
+      // The band's calories and distance for the session: its own records, clipped to the window.
+      const kcal = Math.round(sumInDay(data?.activeKcal, { from: e.start, to: e.end }))
+      const distanceKm = Math.round(sumInDay(data?.distance, { from: e.start, to: e.end }) / 10) / 100
+      return { ...e, minutes: Math.round((e.end - e.start) / 60000), name: exerciseName(e.type), ...(inside.length ? { hrAvg: Math.round(inside.reduce((a, b) => a + b, 0) / inside.length), hrMax: Math.round(Math.max(...inside)) } : {}), ...(kcal ? { kcal } : {}), ...(distanceKm ? { distanceKm } : {}) }
     })
     .sort((a, b) => a.start - b.start)
   const sleep = sleepOf(data?.sleep, nightWindow(day))

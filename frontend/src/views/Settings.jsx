@@ -1647,6 +1647,9 @@ function RecoverySection({ S, update }) {
     {S.recoveryOn === true && <Row icon="repeat" iconTint="var(--acc)" title={busy ? t('Reading…') : t('Read now')} subtitle={t('Today’s night, resting heart rate and steps')} accessory="chevron" onClick={busy ? undefined : readNow} />}
     {S.recoveryOn === true && <Row icon="chart" iconTint="var(--teal)" title={t('Health data')} subtitle={t('Heart rate, sleep, activity, the band’s workouts, the body')} accessory="chevron" onClick={() => nav('/health')} />}
     {S.recoveryOn === true && st.readGranted && <Row icon="key" iconTint="var(--blue)" title={t('Allow more types')} subtitle={t('Distance, calories, workouts, blood oxygen, weight and more')} accessory="chevron" onClick={() => requestRecoveryPermissions().then(load).catch(() => {})} />}
+    {S.recoveryOn === true && <Row icon="figureRun" iconTint="var(--green)" title={t('Log band cardio automatically')} subtitle={t('A walk, run or ride the band recorded becomes a workout here')}>
+      <Switch checked={S.bandCardioAuto === true} onChange={v => update(s => { s.bandCardioAuto = v })} />
+    </Row>}
     {S.recoveryOn === true && <Row icon="sunrise" iconTint="var(--yellow)" title={t('Morning reading')} subtitle={t('Read the night on the first open of the day')}>
       <Switch checked={S.recoveryAuto !== false} onChange={v => update(s => { s.recoveryAuto = v })} />
     </Row>}

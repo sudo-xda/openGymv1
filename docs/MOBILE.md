@@ -492,3 +492,24 @@ phone. With **Use during workouts** on, the app connects as a workout starts, sh
 in the workout header, and writes every set's average and peak and the rest after it as the set
 is ticked — live, without waiting for the band's app to sync. Android 12 and up asks for the
 Bluetooth permissions once; older Androids ask for location, which scanning needs there.
+
+### The band and the log, joined
+
+With the recovery engine on, the Health tab takes the Plan tab's place in the bar (Plan stays a
+tap away from Home's week card and from Settings). A refresh of Health also joins the band to
+the log: a band session that overlaps a logged workout shows that workout beside it, and the
+workout gets the band's heart rate — per set, the rest after it, the session's curve and its
+minutes in five zones (lib/hr-zones.js: 50/60/70/80/90 % of a maximum you set under Health →
+Body, else the highest peak a workout recorded, else 220 minus your age). A walk, run or ride the
+band recorded on its own can be logged as an openGym cardio workout with its minutes, speed,
+calories and heart rate — on its Log button, or by itself with Settings → Recovery → Log band
+cardio automatically. Overlapping band records (Zepp writes an Others beside a walk) fold into
+the longer one.
+
+Stats gains a training load (lib/training-load.js): a session with a heart-rate curve counts by
+Banister's TRIMP, one without by its work sets and effort, on one axis; the week's total, the
+7-day and 28-day daily averages and their ratio (fresh, steady, high, spike) with 28 days of
+bars; and the band's last 30 days of readiness, resting heart rate and sleep. The Health tab's
+Body card fills what the band does not write from the app's own weigh-ins and measurements, adds
+BMI from a height you set, and offers a scale's weight in Health Connect as a weigh-in. The
+Nutrition screen shows the day's balance against the band's calories.

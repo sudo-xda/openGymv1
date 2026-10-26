@@ -63,6 +63,8 @@ import { editCompletedSession, editLeftEmpty, editedRecord, editChangesNothing }
 import { stampWorkout } from './lib/sync-merge.js'
 import { hrLabel, sanitizeHr } from './lib/heart-rate.js'
 import { fillWorkoutHr } from './lib/workout-hr-fill.js'
+import { ZONE_COLORS, ZONE_NAMES } from './lib/hr-zones.js'
+import './health.css'
 import { weeklyWeights } from './lib/bodyweight.js'
 import { workoutText } from './lib/workout-text.js'
 import { workoutCardModel, layoutWorkoutCard, drawWorkoutCard, viewAspect, CARD_FONT, FORMATS } from './lib/workout-card.js'
@@ -3747,6 +3749,10 @@ function WorkoutHeartRate({ w, auto = false }) {
       {rec.hrFrom === 'health' && <span className="small dim">{t('from Health Connect')}</span>}
     </div>}
     {!!rec.hrSeries?.length && <div className="chart"><LineChart points={rec.hrSeries.map(([x, y]) => ({ t: x, y }))} h={90} unit="bpm" color="var(--red)" axes={false} /></div>}
+    {!!rec.hrZones?.some(Boolean) && <>
+      <div className="zones" aria-hidden="true">{rec.hrZones.map((m, i) => <i key={i} style={{ width: (m / rec.hrZones.reduce((n, x) => n + x, 0) * 100) + '%', background: ZONE_COLORS[i] }} />)}</div>
+      <div className="zones-legend">{rec.hrZones.map((m, i) => m > 0 && <span key={i}><i style={{ background: ZONE_COLORS[i] }} />{t(ZONE_NAMES[i])} {m} {t('min')}</span>)}</div>
+    </>}
     {!hr && state === 'none' && <div className="small muted">{t('No heart-rate samples for this session in Health Connect yet.')}</div>}
     <Button size="sm" icon="heart" disabled={state === 'busy'} onClick={fill} style={{ marginTop: 6 }}>{state === 'busy' ? t('Reading…') : hr ? t('Read again') : t('Heart rate from Health Connect')}</Button>
   </div>

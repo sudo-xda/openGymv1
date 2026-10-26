@@ -18,6 +18,7 @@ import { hasConsent } from '../lib/coach.js'
 import { useCoachGate } from '../lib/use-coach-gate.js'
 import { useCoachStatus, requestMeal, resolvePending, settleAwaited, jobErrorText, JOB_ERRORS, isDeclined } from '../lib/coach-api.js'
 import { confirmSheet } from '../sheets.jsx'
+import { loadHealthData } from '../lib/health-store.js'
 import Icon from '../components/Icon.jsx'
 import { Button, NumberField, SearchField, TextArea, TextField } from '../components/ui.jsx'
 import '../nutrition.css'
@@ -50,6 +51,9 @@ export default function Nutrition() {
   const week = useMemo(() => weekSummary(S, day), [S.meals, S.water, day])
   const meals = useMemo(() => [...(S.meals || [])].filter(m => m.d === day).sort((a, b) => (b.t || 0) - (a.t || 0)), [S.meals, day])
   const aiReady = useMealCoach()
+  // The band's calories for the day (lib/health-store.js), for the energy balance line.
+  const [burned, setBurned] = useState(null)
+  useEffect(() => { let alive = true; if (S.recoveryOn === true) loadHealthData().then(h => { if (alive) setBurned(h?.days?.[day] || null) }).catch(() => {}); else setBurned(null); return () => { alive = false } }, [day, S.recoveryOn])
 
   const log = (meal, src) => {
     update(s => { addMeal(s, { ...meal, src }, day) })
@@ -108,6 +112,7 @@ export default function Nutrition() {
           })}
         </div>
       </div>
+      {burned?.totalKcal > 0 && <div className="nut-note" style={{ color: 'var(--label)' }}>{t('Band: {0} kcal burned today ({1} active)', fmtNum(burned.totalKcal), fmtNum(burned.activeKcal || 0))} · <b style={{ color: totals.cal - burned.totalKcal > 0 ? 'var(--orange)' : 'var(--green)' }}>{totals.cal - burned.totalKcal > 0 ? t('+{0} surplus', fmtNum(totals.cal - burned.totalKcal)) : t('{0} deficit', fmtNum(burned.totalKcal - totals.cal))}</b></div>}
       {!targets && <div className="nut-note">{t('Set targets to see what is left of the day. The app can suggest them from your body weight.')} <button className="link" onClick={editTargets} style={{ color: 'var(--acc)', background: 'none', padding: 0, fontSize: 'inherit' }}>{t('Set targets')}</button></div>}
       <div className="nut-actions">
         <button className="nut-act ai" onClick={describe}><Icon name="sparkles" />{t('Describe')}</button>

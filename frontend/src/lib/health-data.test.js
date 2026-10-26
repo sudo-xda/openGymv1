@@ -56,7 +56,10 @@ describe('summarizeDay', () => {
     expect(s.totalKcal).toBe(2300)
     expect(s.floors).toBe(12)
     expect(s.hydrationMl).toBe(500)
-    expect(s.exercise).toEqual([{ start: at(DAY, 18), end: at(DAY, 19), type: 70, title: 'Push', app: 'com.huami.watch.hmwatchmanager', minutes: 60, name: 'Strength training', hrAvg: 140, hrMax: 140 }])
+    expect(s.exercise.length).toBe(1)
+    expect(s.exercise[0]).toMatchObject({ start: at(DAY, 18), end: at(DAY, 19), type: 70, title: 'Push', app: 'com.huami.watch.hmwatchmanager', minutes: 60, name: 'Strength training', hrAvg: 140, hrMax: 140 })
+    expect(s.exercise[0].kcal).toBe(22)          // the day's 520 over 23 h 59, one hour of it
+    expect(s.exercise[0].distanceKm).toBe(0.53)  // 6.4 km over twelve hours, one of them
     expect(s.spo2).toEqual({ min: 96, avg: 97, max: 98, n: 2 })
     expect(s.respiratory).toBe(14.5)
     expect(s.vo2max).toBe(41.2)

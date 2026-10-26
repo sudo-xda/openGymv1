@@ -45,7 +45,11 @@ export default function TabBar({ onStart }) {
   return (
     <nav id="tabbar">
       <Tab active={on('home')} icon="house" label={t('Home')} dot={trouble} onClick={() => nav('/home')} />
-      <Tab active={on('plan')} icon="calendar" label={t('Plan')} onClick={() => nav('/plan')} />
+      {/* With the recovery engine on, the band's day takes the second tab; Plan stays a tap away
+          from Home's week card and from Settings. Without it the bar is what it always was. */}
+      {S.recoveryOn === true
+        ? <Tab active={on('health')} icon="heart" label={t('Health')} onClick={() => nav('/health')} />
+        : <Tab active={on('plan')} icon="calendar" label={t('Plan')} onClick={() => nav('/plan')} />}
       {/* On the workout screen itself there is nothing to resume, so the button reads as the
           tab it is and stays lit (#29); anywhere else it brings you back to the exercise you
           were on — the marker is kept in S.active.cur and never moves on its own (#21). The

@@ -18,6 +18,9 @@ import { fatigueOf, strengthOf, STRENGTH_FLOOR, LB_TO_KG } from '../lib/recovery
 import { strengthExerciseRowsForMuscle } from '../lib/strength-exercises.js'
 import { fatigueStateOf } from '../lib/recovery-view.js'
 import { recoveryScores } from '../lib/recovery-score.js'
+import { loadRatio } from '../lib/training-load.js'
+import { maxHrOf } from '../lib/hr-zones.js'
+import '../health.css'
 import { e1rmSeries, best1RM, formulaOf } from '../lib/onerm.js'
 import { currentDbLoad, workoutAs } from '../lib/dumbbells.js'
 import { maxRepsSeries } from '../lib/pyramid.js'
@@ -726,6 +729,8 @@ export default function Stats() {
       />
     </div>
 
+    <TrainingLoadCard S={S} />
+    <RecoveryTrendsCard S={S} />
     <SummariesCard S={S} />
     {S.recoveryOn === true && <div className="card tappable" style={{ cursor: 'pointer' }} onClick={() => nav('/health')} data-health-link>
       <div className="row between"><div className="row" style={{ gap: 9 }}><span className="lrow-i" style={{ background: 'var(--red)' }}><Icon name="heart" /></span><div><div className="lbl2">{t('Health Connect')}</div><div className="ttl">{t('Heart rate, sleep, activity, body')}</div></div></div><Icon name="chevronRight" className="chev" /></div>
@@ -830,4 +835,48 @@ export default function Stats() {
       <div className="list">{[...workouts].reverse().slice(0, 6).map(w => <WorkoutRow key={w.id} w={w} onClick={() => workoutDetailSheet(w)} />)}</div>
     </>}
   </>
+}
+
+/* ---------- the band over the weeks, and the training load (lib/training-load.js) ---------- */
+function RecoveryTrendsCard({ S }) {
+  const days = useMemo(() => Object.keys(S.biometrics || {}).sort().slice(-30).map(d => ({ d, r: S.biometrics[d] })), [S.biometrics])
+  if (days.length < 3) return null
+  const pts = pick => days.map(x => ({ t: new Date(x.d + 'T12:00:00').getTime(), y: pick(x.r), d: x.d })).filter(p => Number.isFinite(p.y))
+  const rhr = pts(r => r.restingHr), score = pts(r => r.score), sleep = pts(r => (r.sleep ? Math.round(r.sleep.total / 6) / 10 : null))
+  const avg = list => (list.length ? Math.round((list.reduce((n, p) => n + p.y, 0) / list.length) * 10) / 10 : null)
+  const row = (label, list, unit, color) => list.length >= 2 && <div style={{ marginBottom: 10 }}>
+    <div className="row between" style={{ fontSize: 13 }}><span style={{ color: 'var(--label-2)' }}>{label}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}><b>{fmtNum(list[list.length - 1].y)}</b>{unit ? ' ' + unit : ''} <span className="dim">· {t('avg')} {fmtNum(avg(list))}</span></span></div>
+    <div className="chart"><LineChart points={list} h={70} unit={unit} color={color} axes={false} /></div>
+  </div>
+  return <div className="card" data-recovery-trends>
+    <h2>{t('Recovery, last 30 days')}</h2>
+    {row(t('Readiness'), score, '', 'var(--acc)')}
+    {row(t('Resting HR'), rhr, 'bpm', 'var(--red)')}
+    {row(t('Sleep'), sleep, 'h', 'var(--indigo)')}
+  </div>
+}
+const LOAD_WORD = { fresh: () => t('Fresh: room to push'), steady: () => t('Steady: load in step with the month'), high: () => t('High: a sharp week — watch recovery'), spike: () => t('Spike: far above the month — ease off'), none: () => t('No load yet') }
+const LOAD_COLOR = { fresh: 'var(--blue)', steady: 'var(--green)', high: 'var(--yellow)', spike: 'var(--orange)', none: 'var(--label-3)' }
+function TrainingLoadCard({ S }) {
+  const today = todayISO()
+  const rhr = useMemo(() => { const days = Object.keys(S.biometrics || {}).sort().slice(-7); const v = days.map(d => S.biometrics[d]?.restingHr).filter(Number.isFinite); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : 60 }, [S.biometrics])
+  const r = useMemo(() => loadRatio(S, today, { rhr, max: maxHrOf(S) }), [S.workouts, S.maxHr, rhr, today])
+  if (!S.workouts.length) return null
+  const last28 = r.series
+  const max = Math.max(1, ...last28.map(x => x.load))
+  return <div className="card" data-training-load>
+    <div className="row between" style={{ marginBottom: 6 }}><h2 style={{ margin: 0 }}>{t('Training load')}</h2><span className="small" style={{ color: LOAD_COLOR[r.word] }}>{r.ratio != null ? t('ratio {0}', fmtNum(r.ratio)) : ''}</span></div>
+    <div className="hl-tiles" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
+      <div><b>{fmtNum(r.weekTotal)}</b><span>{t('This week')}</span></div>
+      <div><b>{fmtNum(r.acute)}</b><span>{t('Per day, 7 d')}</span></div>
+      <div><b>{fmtNum(r.chronic)}</b><span>{t('Per day, 28 d')}</span></div>
+    </div>
+    <div className="nut-week" style={{ gridTemplateColumns: 'repeat(28,1fr)', gap: 2, height: 56, marginTop: 10 }}>
+      {last28.map(x => <button key={x.d} aria-label={fmtDate(x.d) + ': ' + fmtNum(x.load)} style={{ cursor: 'default' }}>
+        <span className="bar" style={{ height: Math.max(3, Math.round(x.load / max * 50)) + 'px', maxWidth: 10, borderRadius: 3 }}><i style={{ height: '100%', background: x.d >= last28[21].d ? 'var(--acc)' : 'var(--surface-3)' }} /></span>
+      </button>)}
+    </div>
+    <div className="small" style={{ marginTop: 8, color: LOAD_COLOR[r.word] }}>{LOAD_WORD[r.word]()}</div>
+    <div className="muted small" style={{ marginTop: 4 }}>{t('A session with a heart-rate curve counts by its TRIMP; one without by its work sets and effort.')}</div>
+  </div>
 }

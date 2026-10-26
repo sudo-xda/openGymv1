@@ -18,3 +18,17 @@
 @keyframes beat{0%,100%{transform:scale(1)}30%{transform:scale(1.18)}}
 .whdr-hr.off{color:var(--label-3)}
 .whdr-hr.off .icn{animation:none}
+/* a link-shaped button in running text */
+.link-btn{background:none;padding:0;color:var(--acc);font-size:inherit;font-weight:500}
+/* the heart-rate zones of a session */
+.zones{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--surface-2);margin:8px 0 6px}
+.zones i{display:block;height:100%}
+.zones-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;color:var(--label-2)}
+.zones-legend span{display:inline-flex;align-items:center;gap:4px;font-variant-numeric:tabular-nums}
+.zones-legend i{width:8px;height:8px;border-radius:99px;display:inline-block}
+/* a band session matched to a logged workout */
+.band-match{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--acc);margin-top:3px}
+.band-match .icn{font-size:12px}
+.trend-row{display:grid;grid-template-columns:84px 1fr 48px;align-items:center;gap:8px;padding:5px 0;font-size:13px}
+.trend-row .nm{color:var(--label-2)}
+.trend-row .v{text-align:end;font-variant-numeric:tabular-nums;font-weight:600}

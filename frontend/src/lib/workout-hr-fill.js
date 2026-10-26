@@ -5,6 +5,7 @@ import { useStore } from '../store/useStore.js'
 import { recoveryStatus, readHeartRate } from './health-sync.js'
 import { workoutHr, applyWorkoutHr } from './workout-hr.js'
 import { sameWorkout } from './workout-date.js'
+import { maxHrOf, zonesOf } from './hr-zones.js'
 
 /** `{ ok, sets, hr }` or `{ ok: false, reason }`: 'unavailable', 'permission', 'nosamples', 'read'. */
 export async function fillWorkoutHr(w) {
@@ -20,7 +21,7 @@ export async function fillWorkoutHr(w) {
   let sets = 0
   useStore.getState().update(s => {
     const rec = s.workouts.find(x => sameWorkout(x, w))
-    if (rec) sets = applyWorkoutHr(rec, result)
+    if (rec) { sets = applyWorkoutHr(rec, result); rec.hrZones = zonesOf(result.series, maxHrOf(s)) }
   })
   console.info('[workout-hr]', result.samples, 'samples;', sets, 'sets filled; session', result.hr)
   return { ok: true, sets, hr: result.hr, samples: result.samples }

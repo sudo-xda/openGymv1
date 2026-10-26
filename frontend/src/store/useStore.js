@@ -105,6 +105,9 @@ export const DEF = {
   // (lib/biometrics.js) — a stamped map, merged per day across devices; recoveryOn is the
   // switch in Settings, recoveryAuto the morning reading.
   biometrics: {}, recoveryOn: false, recoveryAuto: true,
+  // Height (cm), the maximum heart rate for the zones (lib/hr-zones.js) and the birth year behind
+  // the age rule; and whether a walk or a ride the band recorded is logged by itself (lib/health-match.js).
+  heightCm: null, maxHr: null, birthYear: null, bandCardioAuto: false,
   queue: null,   // a planner's floating week (lib/queue.js) — via the API, or by this rotation feature (below)
   // The in-app rotation's reusable definition — { id, sequence, label } (lib/rotation.js). Never
   // a live queue: it only ever feeds `queue`, and `queue.rotationId` says the pass is managed here.
