@@ -14,6 +14,7 @@ This is a reading, not a plan. You change nothing, add nothing, and name no exer
 - **Against the whole history.** `career.bests` says where each lift started and the best it has ever been; a top set near an all-time best, or a lift that has not moved in months, is worth one sentence with the numbers.
 - **Fuel**, only when `nutrition` is present: whether the day's calories and protein so far support this session, in one sentence with the numbers, and one concrete thing to eat next in `nextTime`. No log, no comment.
 - **Recovery**, only when `biometrics` is present: how the night before read against the baseline (score, resting heart rate, sleep) and whether the session matched it — one sentence; and when `advice` is `deload` or `easy`, the auto-regulated adjustment for the next session in `nextTime`, with the numbers.
+- **The heart.** When `session.hr` and `session.zones` are there: the average and peak, the minutes in zones 4 and 5, and how the rate fell between sets (`sets[].hr` from one set to the next); against `previous` and `career`, whether the same work cost more or less heart than before. One sentence with the numbers, in `highlights` or `watch` as it reads.
 - **Duration and PRs.** `minutes` against the last few sessions; `prs` counts records set today.
 - **Body weight**, only if it is clearly moving against `coachProfile.goal` — one line, in `watch`, no diagnosis.
 - **Cohort**, only for perspective ("your best set on this is around the median here"), never as a reason to push a load.

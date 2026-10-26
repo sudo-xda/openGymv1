@@ -12,6 +12,7 @@ import { effectiveRoutines } from '../lib/history.js'
 import { baselineOf, adviceOf } from '../lib/biometrics.js'
 import { refreshRecovery } from '../lib/recovery-engine.js'
 import Icon from './Icon.jsx'
+import Markdown from './Markdown.jsx'
 import { Button } from './ui.jsx'
 
 const COLOR = { ready: 'var(--green)', moderate: 'var(--yellow)', low: 'var(--orange)' }
@@ -75,6 +76,10 @@ export default function RecoveryCard() {
         <Icon name={advice === 'deload' ? 'warning' : advice === 'easy' ? 'gauge' : 'bolt'} />
         <span>{adviceLine(advice, routine?.name)}</span>
       </div>}
+      {S.coach?.briefing?.d === day && <button type="button" className="rec-brief" onClick={() => nav('/coach')}>
+        <span className="rec-brief-h"><Icon name="sparkles" />{t('Morning briefing')}</span>
+        <Markdown text={S.coach.briefing.text} />
+      </button>}
       {!!shown.flags?.length && <div className="rec-flags">
         {shown.flags.map(f => <span key={f} className="tag">{FLAG[f] ? FLAG[f]() : f}</span>)}
       </div>}

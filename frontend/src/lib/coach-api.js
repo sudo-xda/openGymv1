@@ -88,7 +88,9 @@ export const refinePlan = (...a) => asked(_refinePlan)(...a).then(track)
 // A question, answered in the same call (api/coach/core/chat.js): `{ reply }` in words, from a
 // compact snapshot of the training and the food — not a job, nothing to poll, nothing to apply.
 // lib/coach-threads.js threadLines builds `conversation` from the thread being continued.
-const _requestAsk = async (question, conversation) => DEMO ? (await demo()).demoAsk(S(), question) : LOCAL() ? (await local()).localAsk(S(), question, conversation) : api('/api/coach/ask', { method: 'POST', body: JSON.stringify({ question, conversation: conversation || [], lang: getLang() }) })
+// `opts.mode` is 'chat' (default), 'briefing' or 'weekly' (lib/coach-auto.js); `opts.device` the phone's
+// own block (lib/coach-context.js), which the server bounds.
+const _requestAsk = async (question, conversation, opts = {}) => DEMO ? (await demo()).demoAsk(S(), question, opts) : LOCAL() ? (await local()).localAsk(S(), question, conversation, opts) : api('/api/coach/ask', { method: 'POST', body: JSON.stringify({ question, conversation: conversation || [], lang: getLang(), ...(opts.mode && opts.mode !== 'chat' ? { mode: opts.mode } : {}), ...(opts.device ? { device: opts.device } : {}) }) })
 export const requestAsk = (...a) => asked(_requestAsk)(...a)
 // A meal in words → items with their numbers; `{ suggest: true }` → three meals for today's gap.
 // The app logs what comes back only when the person taps it (views/Nutrition.jsx).

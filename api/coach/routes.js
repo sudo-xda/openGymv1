@@ -118,9 +118,11 @@ export function coachRoutes({ json, readBody, readSession, requireAdmin }) {
       const user = guard(req, res); if (!user) return;
       const body = await readBody(req);
       const question = body.question ? String(body.question).slice(0, cfgStore.MAX_MESSAGE_LEN_CEILING) : '';
-      if (!question.trim()) return json(res, 400, { error: 'question is required', code: 'noquestion' });
+      // The briefing and the weekly review are written from the snapshot alone; a chat needs words.
+      const mode = body.mode === 'briefing' || body.mode === 'weekly' ? body.mode : 'chat';
+      if (mode === 'chat' && !question.trim()) return json(res, 400, { error: 'question is required', code: 'noquestion' });
       try {
-        const r = await jobs.askNow(user.id, { question, lang: body.lang, conversation: Array.isArray(body.conversation) ? body.conversation : null });
+        const r = await jobs.askNow(user.id, { question, mode, lang: body.lang, conversation: Array.isArray(body.conversation) ? body.conversation : null, device: body.device && typeof body.device === 'object' ? body.device : null });
         json(res, 200, { reply: r.reply, ms: r.ms });
       } catch (e) {
         if (e instanceof jobs.CoachError) return json(res, HTTP_FOR[e.code] || (['auth', 'provider', 'timeout', 'missing', 'unusable'].includes(e.code) ? 502 : 400), { error: USER_ERROR[e.code] || e.message, code: e.code });

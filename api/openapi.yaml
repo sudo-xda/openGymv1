@@ -2843,6 +2843,18 @@ paths:
                   type: string
                   maxLength: 4000
                   description: What the person asked. The admin's `maxMessageLen` is the real limit.
+                mode:
+                  type: string
+                  enum: [chat, briefing, weekly]
+                  description: |
+                    `chat` answers the question; `briefing` writes the morning briefing and `weekly`
+                    the weekly review from the snapshot alone (the question may be empty).
+                device:
+                  type: object
+                  description: |
+                    What the phone read today and keeps in its own file — the band's day (steps,
+                    calories, heart rate, blood oxygen), the energy balance, the training load,
+                    the week's heart-rate zones — bounded field by field on the server.
                 conversation:
                   type: array
                   maxItems: 12

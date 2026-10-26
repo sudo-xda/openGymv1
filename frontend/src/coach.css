@@ -516,3 +516,14 @@
 .rec-advice .icn{color:var(--c);flex:none;font-size:15px;margin-top:1px}
 .rec-flags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .rec-flags .tag{font-size:11px}
+/* the morning briefing on the Recovery card */
+.rec-brief{display:block;width:100%;text-align:start;margin-top:12px;padding:12px 14px;border-radius:14px;background:var(--surface-2);color:var(--label);font-size:14px;line-height:1.45}
+.rec-brief-h{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--acc);margin-bottom:6px}
+.rec-brief .md p{margin:0 0 6px}
+/* the auto-regulation banner in a workout */
+.autoreg{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:11px 14px;border-radius:14px;background:color-mix(in srgb,var(--orange) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--orange) 35%,transparent)}
+.autoreg .icn{color:var(--orange);flex:none;font-size:18px}
+.autoreg .grow{flex:1;min-width:0;font-size:13.5px;line-height:1.4}
+.autoreg b{display:block;font-size:14px}
+.autoreg.done{background:color-mix(in srgb,var(--green) 12%,var(--surface));border-color:color-mix(in srgb,var(--green) 30%,transparent)}
+.autoreg.done .icn{color:var(--green)}

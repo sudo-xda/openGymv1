@@ -210,9 +210,11 @@ export const demoDebrief = (S, workoutId) => {
 }
 // A question gets a canned answer built from the demo profile's own numbers, in Markdown, so
 // the chat's rendering and its threads can be seen working on the demo page.
-export const demoAsk = async (S, question) => {
+export const demoAsk = async (S, question, opts = {}) => {
   // A beat of "typing", then the answer in the same call, as the real chat answers.
   await new Promise(r => setTimeout(r, 700))
+  if (opts.mode === 'briefing') return { reply: t('**Ready to train.** Slept 7h 20 with a resting heart rate of 52, right on your week. Yesterday was a rest day. Today: Full body A as planned — green light, push the top sets.') }
+  if (opts.mode === 'weekly') return { reply: ['## ' + t('Training'), t('3 of 3 sessions done, volume up 6% on last week; the bench moved 60 → 62.5 kg.'), '', '## ' + t('Recovery'), t('Resting heart rate 52 on average, sleep 7h 10, readiness 81.'), '', '## ' + t('Nutrition'), t('Nothing logged this week.'), '', '## ' + t('Next week'), '- ' + t('Add a set to the bench: every top set hit its reps.'), '- ' + t('Log three days of food so the Coach can read the balance.')].join('\n') }
   return { reply: demoReply(S, question).reply }
 }
 const demoReply = (S, question) => {

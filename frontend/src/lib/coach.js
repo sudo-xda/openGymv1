@@ -49,7 +49,11 @@ export const emptyCoach = () => ({
   timings: [],
   // A debrief of every workout as soon as it is finished (sheets.jsx FinishSummary). On until
   // switched off in the chat's menu; only ever runs once the Coach is set up and consented.
-  autoDebrief: true
+  autoDebrief: true,
+  // The Coach's own messages (lib/coach-auto.js): the morning briefing after the band's reading
+  // and the weekly review on the first open of a week, each in a thread of its own; the latest
+  // of each kept for the cards.
+  autoBriefing: true, autoWeekly: true, briefing: null, weekly: null, lastWeekly: null
 })
 const coachOf = s => (s.coach = s.coach || emptyCoach())
 

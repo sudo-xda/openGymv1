@@ -8,6 +8,7 @@ import { bwSheet, goalSheet, dayOverrideSheet, calendarSheet, startFlow, starter
 import { NutritionCard } from './Nutrition.jsx'
 import RecoveryCard from '../components/RecoveryCard.jsx'
 import { morningRefresh } from '../lib/recovery-engine.js'
+import { autoCoach } from '../lib/coach-auto.js'
 import { useCoachGate } from '../lib/use-coach-gate.js'
 import { plainText } from '../lib/markdown.js'
 
@@ -129,7 +130,7 @@ export default function Home() {
   // already in progress wins, as on the today row — starting another would overwrite it.
   const onQueueStart = id => { if (S.active) nav('/workout'); else startFlow([id]) }
   // The band's morning reading, once a day on the first open (lib/recovery-engine.js; Android only).
-  useEffect(() => { morningRefresh().catch(() => {}) }, [])
+  useEffect(() => { morningRefresh().catch(() => {}).then(() => autoCoach()).catch(() => {}) }, [])
 
   return <div className="narrow">
     <div className="hdr">

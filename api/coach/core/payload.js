@@ -368,6 +368,8 @@ function cleanSet(s) {
   if (isWarmupSet(s)) o.warmup = true;
   else if (s.failure === true) o.failure = true;
   for (const k of ['w', 'r', 'sec', 'min', 'speed', 'rir', 'rpe']) if (num(s[k]) !== undefined) o[k] = s[k];
+  // The band's reading on the set, "avg/peak", when it had one (frontend lib/heart-rate.js).
+  if (s.hr && typeof s.hr === 'object' && num(s.hr.avg) !== undefined) o.hr = Math.round(s.hr.avg) + '/' + Math.round(num(s.hr.max) ?? s.hr.avg);
   return o;
 }
 const entriesOf = w => list(w.entries).filter(en => en && typeof en === 'object');
@@ -412,6 +414,11 @@ function cleanWorkout(w) {
     ...(w.rating ? { rating: typeof w.rating === 'number' ? w.rating : text(String(w.rating), 20) } : {}),
     ...(w.note ? { note: String(w.note).slice(0, NOTE_MAX) } : {}),
     prs: list(w.prs).length,
+    // A band's figures on the session, when it had one: average and peak, minutes per zone, calories.
+    ...(w.hr && typeof w.hr === 'object' && num(w.hr.avg) !== undefined ? { hr: { avg: w.hr.avg, max: num(w.hr.max) ?? w.hr.avg } } : {}),
+    ...(Array.isArray(w.hrZones) && w.hrZones.some(n => n > 0) ? { zones: w.hrZones.slice(0, 5).map(n => Math.round(Number(n) || 0)) } : {}),
+    ...(num(w.kcal) !== undefined ? { kcal: w.kcal } : {}),
+    ...(w.source === 'band' ? { fromBand: true } : {}),
     entries: entriesOf(w).map(en => ({
       id: ident(en.id),
       name: libraryName(en.id),

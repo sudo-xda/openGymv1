@@ -33,6 +33,7 @@ import Elapsed from '../components/Elapsed.jsx'
 import Icon from '../components/Icon.jsx'
 import * as liveHr from '../lib/live-hr.js'
 import { SET_SPAN_MS } from '../lib/workout-hr.js'
+import { adviceOf } from '../lib/biometrics.js'
 import '../health.css'
 import { Button, Check, NumberField } from '../components/ui.jsx'
 import { defaultIncrement, weightIncrement, stepWeight } from '../lib/progression.js'
@@ -2055,6 +2056,7 @@ function ActiveWorkout() {
     {listMode && chipRow}
     </div>
     {editing && <p className="muted small">{t('Editing a saved workout. Date and duration stay unchanged.')}</p>}
+    {!editing && !A.backfill && <AutoRegBanner S={S} A={A} update={update} />}
     {A.backfill && <div className="muted small" style={{ marginBottom: 8 }}>{t('Logging a past workout, so no rest timers.')}</div>}
 
     {A.entries.length ? (listMode ? (
@@ -2223,4 +2225,42 @@ export function _resetHintQuiet() { lastTouchAt = 0 }
 export default function Workout() {
   const active = useStore(s => s.S.active)
   return active ? <ActiveWorkout /> : <StartChooser />
+}
+
+
+/* ---------- the band's call on today, applied with one tap (lib/biometrics.js adviceOf) ---------- */
+// When the night says to back off, the working weights of every set still to do come down by
+// 15 % — this session only. The session is kept out of progression (lib/session-noprog.js), so a
+// deliberately lighter day never reads as a failed one and the next prescription is untouched.
+export const AUTOREG_PCT = 15
+export function autoRegulate(active, pct = AUTOREG_PCT, unit = 'kg') {
+  const step = unit === 'lb' ? 5 : 2.5
+  let n = 0
+  for (const e of active.entries || []) {
+    for (const set of e.sets || []) {
+      if (!set || set.done || !(set.w > 0)) continue
+      const w = Math.max(step, Math.round((set.w * (1 - pct / 100)) / step) * step)
+      if (w < set.w) { set.w = w; n++ }
+    }
+  }
+  active.autoReg = { pct, at: Date.now(), sets: n }
+  setSessionNoProg(active, true)
+  return n
+}
+function AutoRegBanner({ S, A, update }) {
+  const toast = useUI(s => s.toast)
+  const reading = S.biometrics?.[todayISO()]
+  const advice = adviceOf(reading)
+  if (A.autoReg) return <div className="autoreg done"><Icon name="checkCircle" /><div className="grow"><b>{t('Lighter day applied')}</b>{t('{0}% off {1} sets, kept out of progression.', A.autoReg.pct, A.autoReg.sets)}</div></div>
+  if (advice !== 'deload' && advice !== 'easy') return null
+  const apply = () => {
+    let n = 0
+    update(s => { n = autoRegulate(s.active, AUTOREG_PCT, s.unit) })
+    toast(n ? t('{0} sets lightened by {1}%', n, AUTOREG_PCT) : t('No loaded sets left to lighten'))
+  }
+  return <div className="autoreg">
+    <Icon name={advice === 'deload' ? 'warning' : 'gauge'} />
+    <div className="grow"><b>{advice === 'deload' ? t('The band says recover') : t('The band says take it easy')}</b>{advice === 'deload' ? t('Score {0}: about 15% off the working weights, nothing to failure.', reading.score) : t('Score {0}: leave reps in the tank, no PR attempts today.', reading.score)}</div>
+    {advice === 'deload' && <Button size="sm" variant="tinted" onClick={apply}>{t('Apply')}</Button>}
+  </div>
 }

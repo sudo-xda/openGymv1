@@ -256,6 +256,33 @@ say whether the day's calories and protein supported the session. That is a new 
 on the consent screen, which is why the consent version moved and everyone is asked once more.
 A profile that never logged a meal sends nothing of the kind.
 
+### The Coach writes first: the morning briefing and the weekly review
+
+Two messages the Coach writes by itself, through the chat's direct call with a `mode`
+(`POST /api/coach/ask` with `mode: briefing` or `weekly`), each kept in a thread of its own:
+
+- **The morning briefing**, on the first open of the day after the band's reading: one line on
+  the night and the body, one on yesterday (the session or the rest day, the load, the energy
+  balance), and the call for today — the planned session by name and the auto-regulation verdict.
+  Under 110 words. Shown on the Recovery card and kept in the Morning briefing thread.
+- **The weekly review**, on the first open of a new week: four headings — Training, Recovery,
+  Nutrition, Next week — this week against the one before, with numbers, and exactly two focuses.
+  The server builds the `week` block from the synced state: sessions done against planned,
+  volume, load, the lifts that moved, the band's averages, the food's averages.
+
+Both are switches in the chat's menu (on by default), and both can be asked for by hand there.
+A chat message, a briefing and a review also carry a `device` block the phone sends with the
+request — the band's day (steps, calories, the heart rate's low, average and peak, blood oxygen),
+the energy balance, the training load with its ratio, the week's minutes per heart-rate zone —
+which lives in the phone's own file and never in the synced state; the server bounds it field by
+field. A workout's band figures (average and peak, minutes per zone, calories, a set's own
+reading) ride in every payload a workout appears in, so a debrief reads effort from the heart,
+not only from the reps.
+
+**One-tap auto-regulation.** When the night says to back off, the workout screen shows the
+band's call with an Apply button: every set still to do comes down by 15 %, this session only,
+and the session is kept out of progression so the next prescription is untouched.
+
 ### Comparing with others on the instance
 
 Off unless the admin turns it on (**Settings → Account → Admin dashboard**, the **AI Coach** card →

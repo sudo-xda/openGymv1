@@ -101,7 +101,7 @@ export const localMeal = (S, meal) => start(S, 'meal', { meal: meal?.suggest ? {
 // The chat is one call, answered here and now (api/coach/core/chat.js), the way the server's
 // askNow does it: the persona, the snapshot, plain text back. It counts against the local cap
 // and waits while a job runs, like any other request.
-export async function localAsk(S, question, conversation) {
+export async function localAsk(S, question, conversation, opts = {}) {
   if (job) throw Object.assign(new Error(t('The Coach is already thinking about your training.')), { status: 409, code: 'busy' })
   if (!S?.coach?.consent?.agreedAt) throw Object.assign(new Error(t('The Coach needs your go-ahead first.')), { status: 403, code: 'consent' })
   const d = await loadCoachDevice()
@@ -111,8 +111,8 @@ export async function localAsk(S, question, conversation) {
   if (cap.used >= cap.limit) throw Object.assign(new Error(t('The Coach is taking a breather. You’ve used today’s {0} runs on this phone.', cap.limit)), { status: 429, code: 'cap' })
   await bumpDaily()
   const key = await getApiKey()
-  const { system, user } = buildChat(S, { handle: await handle(), question: String(question || '').slice(0, 1000), conversation: Array.isArray(conversation) ? conversation : [], lang: getLang() })
-  const r = await adapter.invoke({ cfg: cfgOf(d), system, prompt: user, model: d.model || HTTP_PROVIDERS[d.provider].defaultModel, timeoutMs: CHAT_TIMEOUT_MS, maxTokens: CHAT_MAX_TOKENS, plain: true, env: envOf(d, key), fetch: nativeFetch })
+  const { system, user, maxTokens } = buildChat(S, { handle: await handle(), question: String(question || '').slice(0, 1000), conversation: Array.isArray(conversation) ? conversation : [], lang: getLang(), mode: opts.mode, device: opts.device })
+  const r = await adapter.invoke({ cfg: cfgOf(d), system, prompt: user, model: d.model || HTTP_PROVIDERS[d.provider].defaultModel, timeoutMs: CHAT_TIMEOUT_MS, maxTokens: maxTokens || CHAT_MAX_TOKENS, plain: true, env: envOf(d, key), fetch: nativeFetch })
   if (r.timedOut) throw Object.assign(new Error(t('The Coach took too long and gave up.')), { status: 504, code: 'timeout' })
   if (r.spawnError || r.code !== 0) {
     const detail = String(r.stderr || r.text || '').slice(0, 300)

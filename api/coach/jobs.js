@@ -559,14 +559,15 @@ export async function askNow(uid, opts = {}) {
   const { used, limit } = capState(uid);
   if (limit > 0 && used >= limit) throw new CoachError('cap', 'daily limit reached');
   if (caps.instanceDaily > 0 && instanceUsedToday() >= caps.instanceDaily) throw new CoachError('cap', 'this instance has reached its daily limit');
+  const mode = chatCore.modeOf(opts.mode);
   const question = clampMessage(opts.question);
-  if (!question || !question.trim()) throw new CoachError('noquestion', 'question is required');
+  if (mode === 'chat' && (!question || !question.trim())) throw new CoachError('noquestion', 'question is required');
   cfgStore.bindInstanceCredential(uid);
   bumpDaily(uid);
   bumpInstanceDaily();
 
-  const { system, user } = chatCore.buildChat(S, {
-    handle: handleFor(uid), question, conversation: opts.conversation,
+  const { system, user, maxTokens } = chatCore.buildChat(S, {
+    handle: handleFor(uid), question, conversation: opts.conversation, device: opts.device, mode,
     lang: payloadLib.langTag(opts.lang) || (S.langAuto === true ? payloadLib.langTag(process.env.DEFAULT_LANG) : null) || S.lang
   });
   const jobDir = adapter.spawns === false ? null : fs.mkdtempSync(path.join(os.tmpdir(), 'coach-'));
@@ -579,14 +580,14 @@ export async function askNow(uid, opts = {}) {
     const split = adapter.spawns === false;
     const r = await adapter.invoke({
       cfg, model: cfgStore.modelFor(cfg), timeoutMs: CHAT_TIMEOUT_MS, jobDir, env,
-      fetch: fetchFor(CHAT_TIMEOUT_MS), maxTokens: chatCore.CHAT_MAX_TOKENS, plain: true,
+      fetch: fetchFor(CHAT_TIMEOUT_MS), maxTokens, plain: true,
       prompt: split ? user : system + '\n\n---\n\n' + user,
       ...(split ? { system } : {})
     });
     const outcome = r.timedOut ? 'timeout' : r.spawnError ? 'missing' : r.code !== 0 ? (/auth|unauthor|api key|credential|token|401|403|login/i.test(r.stderr || r.text || '') ? 'auth' : 'provider') : null;
     const reply = outcome ? '' : chatCore.cleanReply(r.text);
     const errorClass = outcome || (reply ? null : 'unusable');
-    cfgStore.logJob({ at: new Date().toISOString(), uid, kind: 'chat', trigger: 'manual', outcome: errorClass ? 'failed' : 'ready', errorClass, ms: Date.now() - startedAt, detail: errorClass ? (r.stderr || '').slice(0, 300) || null : null });
+    cfgStore.logJob({ at: new Date().toISOString(), uid, kind: mode === 'chat' ? 'chat' : mode, trigger: 'manual', outcome: errorClass ? 'failed' : 'ready', errorClass, ms: Date.now() - startedAt, detail: errorClass ? (r.stderr || '').slice(0, 300) || null : null });
     if (errorClass) throw new CoachError(errorClass, errorClass === 'auth' ? 'the Coach could not sign in to its provider' : errorClass === 'timeout' ? 'the Coach took too long' : 'the Coach could not answer');
     return { reply, ms: Date.now() - startedAt };
   } finally {

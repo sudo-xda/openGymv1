@@ -10,6 +10,7 @@ const DIR = tempData();
 const cfg = await import('../coach/config.js');
 const jobs = await import('../coach/jobs.js');
 const chat = await import('../coach/core/chat.js');
+const payload = await import('../coach/core/payload.js');
 const { anthropicSpec } = await import('../coach/core/adapters/anthropic.js').catch(() => ({}));
 const { forcePrivilegeVerdict } = await import('../coach/adapters/spawn.js');
 
@@ -45,8 +46,8 @@ test('the snapshot is compact, bounded and carries no account identity', () => {
 
 test('buildChat makes a short persona and a user part with the snapshot and the message', () => {
   const { system, user, question } = chat.buildChat(longState(), { handle: 'h'.repeat(16), lang: 'en', question: '  how is  my squat? ' });
-  assert.match(system, /texting back/);
-  assert.ok(system.length < 2500, 'the persona is short');
+  assert.match(system, /coach in a chat/);
+  assert.ok(system.length < 5000, 'the persona is short');
   assert.match(user, /## Snapshot[\s\S]*## Message\n\nhow is my squat\?/);
   assert.equal(question, 'how is my squat?');
 });
@@ -121,4 +122,47 @@ test('the route returns the reply with 200, and a refusal with its class', async
   res = {};
   await routes['POST /api/coach/ask']({ body: { question: ' ' } }, res);
   assert.equal(res.status, 400);
+});
+
+test('the briefing and the weekly review are modes of the same call, with their own persona and the phone\'s block bounded', async () => {
+  const S = longState();
+  S.week = { 1: ['r1'], 3: ['r1'], 5: ['r1'] };
+  const dev = { today: { steps: 5200, totalKcal: 2100, hr: { min: 48, avg: 70, max: 999 } }, load: { ratio: 1.6, word: 'spike', weekTotal: 420 }, energy: { eaten: 1800, burned: 2100, balance: -300 }, evil: 'x' };
+  const b = chat.buildChat(S, { handle: 'h'.repeat(16), lang: 'en', mode: 'briefing', device: dev });
+  assert.match(b.system, /MORNING BRIEFING/);
+  assert.equal(b.question, 'Write today\'s morning briefing.');
+  assert.equal(b.maxTokens, chat.BRIEFING_MAX_TOKENS);
+  const snap = JSON.parse(b.user.match(/```json\n([\s\S]*?)\n```/)[1]);
+  assert.equal(snap.device.today.hr.max, 250, 'bounded');
+  assert.equal(snap.device.load.word, 'spike');
+  assert.equal(snap.device.evil, undefined);
+  assert.ok(Array.isArray(snap.today.planned));
+  S.workouts[S.workouts.length - 1].d = new Date().toISOString().slice(0, 10);
+  const w = chat.buildChat(S, { handle: 'h'.repeat(16), lang: 'en', mode: 'weekly' });
+  assert.match(w.system, /WEEKLY REVIEW/);
+  const ws = JSON.parse(w.user.match(/```json\n([\s\S]*?)\n```/)[1]);
+  assert.ok(ws.week.thisWeek.sessions.length >= 1);
+  assert.equal(ws.week.plannedPerWeek, 3);
+  assert.equal(typeof ws.week.lastWeek.sessions, 'number');
+  assert.equal(chat.buildChat(S, { handle: 'h'.repeat(16), mode: 'nonsense', question: 'q' }).mode, 'chat');
+  assert.equal(chat.cleanDevice(null), null);
+  assert.equal(chat.cleanDevice({ junk: 1 }), null);
+  // Through the queue's direct call, no question needed.
+  const uid = 'u-briefing';
+  writeState(DIR, uid, S);
+  const r = await jobs.askNow(uid, { mode: 'briefing', device: dev });
+  assert.match(r.reply, /Good question/);
+  await assert.rejects(() => jobs.askNow(uid, { mode: 'chat', question: '' }), e => e.code === 'noquestion');
+});
+
+test('a workout\'s band figures ride in the payload: session hr, zones, calories, and a set\'s hr', () => {
+  const S = sampleState();
+  S.workouts[0].hr = { avg: 131, max: 162 }; S.workouts[0].hrZones = [5, 10, 20, 8, 2]; S.workouts[0].kcal = 310.4;
+  S.workouts[0].entries[0].sets[0].hr = { avg: 120.4, max: 140 };
+  const p = payload.build(S, { handle: 'h'.repeat(16), kind: 'debrief', workoutId: 'w1' });
+  assert.deepEqual(p.session.hr, { avg: 131, max: 162 });
+  assert.deepEqual(p.session.zones, [5, 10, 20, 8, 2]);
+  assert.equal(p.session.kcal, 310.4);
+  assert.equal(p.session.entries[0].sets[0].hr, '120/140');
+  assert.equal(p.session.entries[0].sets[1].hr, undefined);
 });

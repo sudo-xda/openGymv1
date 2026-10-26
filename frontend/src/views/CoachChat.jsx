@@ -36,6 +36,8 @@ import { ensureThreads, newThread, switchThread, renameThread, deleteThread, off
 import { insightsFor } from '../lib/coach-insights.js'
 import { useCoachStatus, requestReview, requestDebrief, requestPlan, refinePlan, requestAsk, resolvePending, cohortStats, setCohortShare, jobErrorText, awaitedJob, settleAwaited, JOB_ERRORS, ensureAiConsent, isDeclined } from '../lib/coach-api.js'
 import { getApiKey, setApiKey } from '../lib/coach-secrets.js'
+import { morningBriefing, weeklyReview } from '../lib/coach-auto.js'
+import { deviceContext } from '../lib/coach-context.js'
 import { AiConsentSection } from '../components/CoachConsentSheet.jsx'
 import { useCoachGate } from '../lib/use-coach-gate.js'
 import { confirmSheet } from '../sheets.jsx'
@@ -174,7 +176,7 @@ export default function CoachChat() {
       update(s => { userLine = appendChat(s, { role: 'user', kind: 'text', text: msg }) })
       setText(''); setExpanded(false)
       setThinking(true)
-      const r = await requestAsk(msg, lines)
+      const r = await requestAsk(msg, lines, { device: await deviceContext().catch(() => null) })
       const reply = String(r?.reply || '').trim()
       if (!reply) throw Object.assign(new Error(JOB_ERRORS.unusable), { data: { code: 'unusable' } })
       update(s => {
@@ -258,6 +260,17 @@ export default function CoachChat() {
   const showHistory = () => openSheet(close => <HistorySheet S={S} close={close} openSheet={openSheet} />)
   const showCohort = () => openSheet(() => <CohortSheet S={S} update={update} toast={toast} />)
   const startNew = () => { update(s => { newThread(s.coach = s.coach || emptyCoach()) }); setDrawer(false) }
+  // The briefing and the weekly review by hand: written into their own threads, then shown.
+  const writeOwn = async (fn, key) => {
+    if (busy) return
+    setBusy(true); setThinking(true)
+    const r = await fn({ force: true })
+    setThinking(false); setBusy(false)
+    if (r.ok) update(s => { const c = (s.coach = s.coach || emptyCoach()); const th = (c.threads || []).find(x => x.own === key); if (th) switchThread(c, th.id) })
+    else toast(r.reason === 'notready' ? t('The Coach needs your go-ahead first.') : JOB_ERRORS[r.reason] || t('Could not ask the Coach'))
+  }
+  const askBriefing = () => writeOwn(morningBriefing, 'briefing')
+  const askWeekly = () => writeOwn(weeklyReview, 'weekly')
 
   const idle = !job && !pending
   const menu = () => openSheet(close => <div className="chat-menu">
@@ -272,6 +285,10 @@ export default function CoachChat() {
       {idle && <Row icon="clipboard" iconTint="var(--indigo)" title={t('Start a new plan')} subtitle={t('A fresh plan from your answers; your workouts stay')} accessory="chevron" onClick={() => { close(); askNewPlan() }} />}
       <Row icon="pencil" iconTint="var(--indigo)" title={t('Edit my answers')} subtitle={t('Goal, days, equipment, limits')} accessory="chevron" onClick={() => closeThenNav(close, '/coach/intake?edit=1')} />
       <AutoDebriefRow />
+      <AutoRow field="autoBriefing" icon="sunrise" tint="var(--yellow)" title={t('Morning briefing')} sub={t('A few lines on the night, yesterday and today, on the first open')} />
+      <AutoRow field="autoWeekly" icon="calendar" tint="var(--teal)" title={t('Weekly review')} sub={t('Training, recovery, nutrition and two focuses, once a week')} />
+      {idle && <Row icon="sparkles" iconTint="var(--yellow)" title={t('Write today’s briefing')} accessory="chevron" onClick={() => { close(); askBriefing() }} />}
+      {idle && <Row icon="chartLine" iconTint="var(--teal)" title={t('Write this week’s review')} accessory="chevron" onClick={() => { close(); askWeekly() }} />}
       <Row icon="clock" iconTint="var(--purple)" title={t('Automatic reviews')} subtitle={cadenceLabel(coach)} accessory="chevron" onClick={() => { close(); cadenceSheet(openSheet, update) }} />
       {!DEMO && <Row icon="shield" iconTint="var(--green)" title={t('AI data sharing')} subtitle={t('Who may see your training')} accessory="chevron" onClick={() => { close(); openSheet(() => <div className="chat-menu"><AiConsentSection /></div>) }} />}
       {canRevert(S) && <Row icon="reset" iconTint="var(--blue)" title={t('Undo the last Coach changes')} accessory="chevron" onClick={() => { close(); doRevert() }} />}
@@ -312,7 +329,7 @@ export default function CoachChat() {
     </div>
 
     <div className="msgs">
-      {!messages.length && !job && !pending && <Welcome S={S} user={user} onAsk={askText} jobs={{ askReview, askDebrief, askNewPlan, lastWorkout }} />}
+      {!messages.length && !job && !pending && <Welcome S={S} user={user} onAsk={askText} jobs={{ askReview, askDebrief, askNewPlan, askWeekly, askBriefing, lastWorkout }} />}
 
       {messages.map((m, i) => <Fragment key={m.id}>
         {dayLabel(m.at, messages[i - 1]?.at) && <div className="msg-day"><span>{dayLabel(m.at, messages[i - 1]?.at)}</span></div>}
@@ -395,6 +412,8 @@ function Welcome({ S, user, onAsk, jobs }) {
       ...(topName ? [{ label: t('How is my {0} progressing?', topName) }] : []),
       { label: t('Where am I stalling, and why?') },
       ...(jobs.lastWorkout ? [{ label: t('Debrief my last workout'), run: jobs.askDebrief, kind: t('debrief') }] : []),
+      { label: t('Write this week’s review'), run: jobs.askWeekly, kind: t('review') },
+      { label: t('Write today’s briefing'), run: jobs.askBriefing, kind: t('briefing') },
     ] },
     { key: 'technique', icon: 'lightbulb', label: t('Technique'), items: [
       { label: t('Give me the main cues for a better squat') },
@@ -503,6 +522,14 @@ function KeyModal({ provider, close, toast, nav }) {
   </div>
 }
 
+/** A switch on the coach namespace (lib/coach.js emptyCoach): the Coach's own messages. */
+function AutoRow({ field, icon, tint, title, sub }) {
+  const on = useStore(s => s.S.coach?.[field] !== false)
+  const update = useStore(s => s.update)
+  return <Row icon={icon} iconTint={tint} title={title} subtitle={sub}>
+    <Switch checked={on} onChange={v => update(s => { (s.coach = s.coach || emptyCoach())[field] = v })} />
+  </Row>
+}
 /** The switch for the summary the Coach writes when a workout ends (sheets.jsx AutoDebrief). */
 function AutoDebriefRow() {
   const on = useStore(s => s.S.coach?.autoDebrief !== false)
