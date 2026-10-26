@@ -485,10 +485,13 @@ may arrive minutes or hours after the session; the sheet's button reads again.
 ### Live heart rate from the band (Bluetooth)
 
 A Mi Band shares its heart rate over Bluetooth LE — the standard Heart Rate Service — while a
-workout mode runs on the band and *activity heart rate sharing* is on in the Zepp app; a chest
-strap shares always. Settings → **Band heart rate (Bluetooth)** → **Find the band** scans for a
-heart-rate broadcast (start the workout mode on the band first) and remembers the band on this
-phone. With **Use during workouts** on, the app connects as a workout starts, shows the live rate
+workout mode runs on the band and, in the Zepp app under the band, *Discoverable* and *Activity
+heart rate sharing* are on; a chest strap shares always. Settings → **Band heart rate
+(Bluetooth)** → **Find the band** lists the band the phone already holds a link to (the one Zepp
+is connected to) first, then anything nearby advertising a heart rate, then band-like names — a
+Mi Band does not put the service in its advertisement, so the list is not filtered on it and
+whether the band really shares is settled when a workout connects — and remembers the band on
+this phone. With **Use during workouts** on, the app connects as a workout starts, shows the live rate
 in the workout header, and writes every set's average and peak and the rest after it as the set
 is ticked — live, without waiting for the band's app to sync. Android 12 and up asks for the
 Bluetooth permissions once; older Androids ask for location, which scanning needs there.

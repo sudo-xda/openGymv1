@@ -1673,7 +1673,7 @@ function BandSection() {
     <Row icon="heart" iconTint="var(--red)" title={t('Use during workouts')} subtitle={!st?.supported ? t('No Bluetooth LE on this phone') : !st?.enabled ? t('Bluetooth is off') : cfg.address ? (cfg.name || cfg.address) : t('No band chosen yet')}>
       <Switch checked={cfg.on === true} disabled={!cfg.address} onChange={toggle} />
     </Row>
-    <Row icon="magnifier" iconTint="var(--blue)" title={cfg.address ? t('Choose another band') : t('Find the band')} subtitle={t('Start a workout mode on the band first, then scan')} accessory="chevron" onClick={pick} />
+    <Row icon="magnifier" iconTint="var(--blue)" title={cfg.address ? t('Choose another band') : t('Find the band')} subtitle={t('The band its app is connected to is listed first')} accessory="chevron" onClick={pick} />
   </Section>
 }
 function BandPicker({ close, onPicked }) {
@@ -1689,11 +1689,12 @@ function BandPicker({ close, onPicked }) {
   useEffect(() => { scan() }, [])
   return <>
     <h3>{t('Find the band')}</h3>
-    {state === 'scanning' && <div className="chat-empty">{t('Scanning for a heart-rate broadcast… start a workout mode on the band if it is not sharing yet.')}</div>}
+    {state === 'scanning' && <div className="chat-empty">{t('Looking for the band… the one its app is connected to comes first, then anything sharing a heart rate nearby.')}</div>}
     {state === 'off' && <div className="chat-empty">{t('Turn Bluetooth on first.')}</div>}
     {state === 'denied' && <div className="chat-empty">{t('Bluetooth permission was not granted.')}</div>}
-    {state === 'done' && !devices.length && <div className="chat-empty">{t('Nothing found. On the band, start a workout mode; in the Zepp app, turn on activity heart rate sharing; then scan again.')}</div>}
-    {state === 'done' && devices.map(d => <Row key={d.address} icon="heart" iconTint="var(--red)" title={d.name || t('Unnamed device')} subtitle={d.address} accessory="chevron" onClick={() => { onPicked(d); close() }} />)}
+    {state === 'done' && !devices.length && <div className="chat-empty">{t('Nothing found. In the Zepp app, open the band and turn on “Discoverable” and “Activity heart rate sharing”; start a workout mode on the band; then scan again.')}</div>}
+    {state === 'done' && devices.map(d => <Row key={d.address} icon="heart" iconTint={d.connected || d.hrs || d.band ? 'var(--red)' : 'var(--text-3)'} title={d.name || t('Unnamed device')} subtitle={[d.connected ? t('connected to this phone') : d.bonded ? t('paired with this phone') : '', d.hrs ? t('shares a heart rate') : '', d.address].filter(Boolean).join(' · ')} accessory="chevron" onClick={() => { onPicked(d); close() }} />)}
+    {state === 'done' && devices.length > 0 && <div className="chat-empty">{t('Pick the band. Whether it shares a heart rate is checked when a workout starts: sharing must be on in the Zepp app and a workout mode running on the band.')}</div>}
     <div style={{ height: 8 }} />
     <Button icon="repeat" disabled={state === 'scanning'} onClick={scan}>{t('Scan again')}</Button>
   </>

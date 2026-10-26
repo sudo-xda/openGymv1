@@ -3,7 +3,8 @@
 //
 // The band is a fact of this phone — its Bluetooth address in the app's own file, never in the
 // synced state. A Mi Band shares its heart rate over Bluetooth only while a workout mode runs
-// on the band with "activity heart rate sharing" on in its app; a chest strap shares always.
+// on the band with "activity heart rate sharing" (and "discoverable") on in its app; a chest
+// strap shares always.
 // Android app only; elsewhere `available()` is false and nothing here is loaded.
 import { MOBILE, nativePlatform, readJsonFile, writeJsonFile } from './mobile.js'
 import { liveSetHr } from './workout-hr.js'
@@ -39,7 +40,10 @@ export async function requestPermissions() {
   if (!p) return false
   try { return !!(await p.BLE.requestPermissions()).granted } catch { return false }
 }
-/** The bands around that share a heart rate, after a scan. */
+/** The bands around, best first: `{ address, name, connected, bonded, hrs, band }` — the one the
+ * phone already holds a link to (its app is connected), the ones advertising a heart rate, the
+ * band-like names, the paired ones, the rest. A Mi Band does not advertise the service, so
+ * whether it really shares is only known on connect. */
 export async function scan(ms = 8000) {
   const p = await plugin()
   if (!p) return []

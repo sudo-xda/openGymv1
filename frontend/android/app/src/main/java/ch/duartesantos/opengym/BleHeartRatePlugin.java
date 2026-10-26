@@ -40,11 +40,17 @@ import java.util.UUID;
 
 /**
  * A band's live heart rate during a workout, over Bluetooth LE: the standard Heart Rate Service
- * (0x180D) a Mi Band broadcasts once "activity heart rate sharing" is on in its app and a
- * workout mode is started on the band, which any chest strap or watch with the service speaks
- * too. Scan for a device advertising the service, connect, subscribe to the measurement
- * characteristic (0x2A37), and hand every reading to the page as an event. Plain android.bluetooth,
- * no library.
+ * (0x180D) a Mi Band exposes once "activity heart rate sharing" (and "discoverable") is on in
+ * its app and a workout mode runs on the band, which any chest strap or watch with the service
+ * speaks too. Find the band, connect, subscribe to the measurement characteristic (0x2A37), and
+ * hand every reading to the page as an event. Plain android.bluetooth, no library.
+ *
+ * Finding the band: a Mi Band does not put the Heart Rate Service in its advertisement (some
+ * firmware barely advertises at all while its app holds the link), so a scan filtered on 0x180D
+ * finds nothing. `scan` therefore lists first the devices the phone already holds a GATT link to
+ * (the band Zepp is connected to — a second app may open its own client on that link) and the
+ * bonded ones, then scans unfiltered and ranks: advertises 0x180D, then a band-like name, then
+ * other named devices. Whether the service is really there is settled on connect.
  *
  * Nothing here is remembered across runs: the page keeps the chosen device's address in its
  * own file (lib/live-hr.js) and asks to connect again at the next workout.
@@ -53,7 +59,7 @@ import java.util.UUID;
  *   const BLE = registerPlugin('BleHeartRate');
  *   await BLE.status();                        // { supported, enabled, granted }
  *   await BLE.requestPermissions();            // { granted }
- *   const { devices } = await BLE.scan({ ms }); // [{ address, name }], those advertising 0x180D
+ *   const { devices } = await BLE.scan({ ms }); // [{ address, name, connected, bonded, hrs, band }], best first
  *   await BLE.connect({ address });            // resolves once notifications are on
  *   BLE.addListener('hr', ({ bpm, at }) => …);
  *   BLE.addListener('state', ({ connected }) => …);
@@ -79,6 +85,7 @@ public class BleHeartRatePlugin extends Plugin {
     private String connectedAddress;
     private PluginCall pendingConnect;
     private ScanCallback scanCallback;
+    private boolean retried;
 
     private static boolean modern() { return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S; }
     private String alias() { return modern() ? "ble" : "location"; }
@@ -115,7 +122,56 @@ public class BleHeartRatePlugin extends Plugin {
         call.resolve(r);
     }
 
-    /** The devices advertising the Heart Rate Service, after `ms` of scanning. */
+    private static final String[] BAND_NAMES = { "mi band", "mi smart band", "xiaomi", "amazfit", "zepp", "smart band", "huami", "redmi" };
+    private static boolean bandName(String name) {
+        if (name == null) return false;
+        String n = name.toLowerCase();
+        for (String b : BAND_NAMES) if (n.contains(b)) return true;
+        return false;
+    }
+
+    /** One row per device: address, name, and how it was found. */
+    private static final class Found {
+        String address, name = "";
+        boolean connected, bonded, hrs, band;
+        int rank() {
+            if (connected) return 0;
+            if (hrs) return 1;
+            if (band) return 2;
+            if (bonded) return 3;
+            return name.isEmpty() ? 5 : 4;
+        }
+        JSObject json() {
+            JSObject o = new JSObject();
+            o.put("address", address); o.put("name", name);
+            o.put("connected", connected); o.put("bonded", bonded); o.put("hrs", hrs); o.put("band", band);
+            return o;
+        }
+    }
+
+    private static String nameOf(BluetoothDevice d) {
+        try { String n = d.getName(); return n == null ? "" : n; } catch (SecurityException e) { return ""; }
+    }
+
+    /** The devices the phone already holds — a GATT link (the band its app is connected to) or a bond. */
+    private void known(Map<String, Found> found) {
+        try {
+            BluetoothManager m = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
+            if (m != null) for (BluetoothDevice d : m.getConnectedDevices(BluetoothProfile.GATT)) {
+                Found f = new Found(); f.address = d.getAddress(); f.name = nameOf(d); f.connected = true; f.band = bandName(f.name);
+                found.put(f.address, f);
+            }
+            BluetoothAdapter a = adapter();
+            if (a != null) for (BluetoothDevice d : a.getBondedDevices()) {
+                if (d.getType() == BluetoothDevice.DEVICE_TYPE_CLASSIC) continue;   // headphones, cars
+                Found f = found.get(d.getAddress());
+                if (f == null) { f = new Found(); f.address = d.getAddress(); f.name = nameOf(d); found.put(f.address, f); }
+                f.bonded = true; f.band = f.band || bandName(f.name);
+            }
+        } catch (SecurityException e) { /* no connect permission: nothing known */ }
+    }
+
+    /** The heart-rate devices around, after `ms` of scanning: known links and bonds first, then the air. */
     @PluginMethod
     public void scan(PluginCall call) {
         BluetoothAdapter a = adapter();
@@ -124,33 +180,47 @@ public class BleHeartRatePlugin extends Plugin {
         BluetoothLeScanner scanner = a.getBluetoothLeScanner();
         if (scanner == null) { call.reject("no scanner", "off"); return; }
         final int ms = Math.max(2000, Math.min(SCAN_MAX_MS, call.getInt("ms", 8000)));
-        final Map<String, String> found = Collections.synchronizedMap(new LinkedHashMap<>());
+        final Map<String, Found> found = Collections.synchronizedMap(new LinkedHashMap<>());
+        known(found);
         stopScan(a);
         scanCallback = new ScanCallback() {
-            @Override public void onScanResult(int type, ScanResult result) {
+            @Override public void onScanResult(int type, ScanResult result) { seen(result); }
+            @Override public void onBatchScanResults(List<ScanResult> results) { for (ScanResult r : results) seen(r); }
+            private void seen(ScanResult result) {
                 try {
                     BluetoothDevice d = result.getDevice();
-                    String name = result.getScanRecord() != null && result.getScanRecord().getDeviceName() != null ? result.getScanRecord().getDeviceName() : d.getName();
-                    found.put(d.getAddress(), name == null ? "" : name);
+                    String name = result.getScanRecord() != null && result.getScanRecord().getDeviceName() != null ? result.getScanRecord().getDeviceName() : nameOf(d);
+                    boolean hrs = false;
+                    if (result.getScanRecord() != null && result.getScanRecord().getServiceUuids() != null)
+                        for (ParcelUuid u : result.getScanRecord().getServiceUuids()) if (HRS.equals(u.getUuid())) hrs = true;
+                    synchronized (found) {
+                        Found f = found.get(d.getAddress());
+                        if (f == null) { f = new Found(); f.address = d.getAddress(); found.put(f.address, f); }
+                        if (f.name.isEmpty() && name != null) f.name = name;
+                        f.hrs = f.hrs || hrs; f.band = f.band || bandName(f.name);
+                    }
                 } catch (SecurityException e) { /* no connect permission for the name */ }
             }
             @Override public void onScanFailed(int code) { Log.d(TAG, "scan failed " + code); }
         };
-        List<ScanFilter> filters = new ArrayList<>();
-        filters.add(new ScanFilter.Builder().setServiceUuid(new ParcelUuid(HRS)).build());
+        // No service filter: a Mi Band does not advertise 0x180D, it only answers for it once connected.
         ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
         try {
-            scanner.startScan(filters, settings, scanCallback);
+            scanner.startScan(new ArrayList<>(), settings, scanCallback);
         } catch (SecurityException e) { call.reject("Bluetooth permission not granted", "permission"); return; }
         main.postDelayed(() -> {
             stopScan(a);
+            List<Found> rows;
+            synchronized (found) { rows = new ArrayList<>(found.values()); }
+            Collections.sort(rows, (x, y) -> x.rank() - y.rank());
             JSArray devices = new JSArray();
-            synchronized (found) {
-                for (Map.Entry<String, String> e : found.entrySet()) {
-                    JSObject o = new JSObject(); o.put("address", e.getKey()); o.put("name", e.getValue()); devices.put(o);
-                }
+            int n = 0;
+            for (Found f : rows) {
+                if (f.rank() == 5 && n >= 8) continue;      // the air is full of nameless beacons
+                if (n++ >= 30) break;
+                devices.put(f.json());
             }
-            Log.d(TAG, "scan: " + devices.length() + " heart-rate devices");
+            Log.d(TAG, "scan: " + devices.length() + " devices (" + rows.size() + " seen)");
             JSObject r = new JSObject(); r.put("devices", devices); call.resolve(r);
         }, ms);
     }
@@ -173,13 +243,14 @@ public class BleHeartRatePlugin extends Plugin {
         try { device = a.getRemoteDevice(address); } catch (IllegalArgumentException e) { call.reject("bad address", "args"); return; }
         call.setKeepAlive(true);
         pendingConnect = call;
+        retried = false;
         try {
             gatt = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 ? device.connectGatt(getContext(), false, callback, BluetoothDevice.TRANSPORT_LE)
                 : device.connectGatt(getContext(), false, callback);
         } catch (SecurityException e) { pendingConnect = null; call.reject("Bluetooth permission not granted", "permission"); }
         // A band that never answers must not leave the page waiting for ever.
-        main.postDelayed(() -> { if (pendingConnect == call) { pendingConnect = null; closeGatt(); call.reject("the band did not answer", "timeout"); } }, 20000);
+        main.postDelayed(() -> { if (pendingConnect == call) { pendingConnect = null; closeGatt(); call.reject("the band did not answer", "timeout"); } }, 30000);
     }
 
     @PluginMethod
@@ -211,6 +282,18 @@ public class BleHeartRatePlugin extends Plugin {
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 Log.d(TAG, "disconnected, status " + status);
                 connectedAddress = null;
+                if (pendingConnect != null && status != BluetoothGatt.GATT_SUCCESS && !retried) {
+                    // 133 and friends: the stack's first try at a device another app holds often fails; once more, queued.
+                    retried = true;
+                    try { g.close(); } catch (Exception e) { /* gone */ }
+                    BluetoothDevice dev = g.getDevice();
+                    main.postDelayed(() -> {
+                        if (pendingConnect == null) return;
+                        try { gatt = dev.connectGatt(getContext(), true, callback, BluetoothDevice.TRANSPORT_LE); }
+                        catch (SecurityException e) { fail("permission"); }
+                    }, 600);
+                    return;
+                }
                 if (pendingConnect != null) fail("the band disconnected");
                 emitState(false);
             }
@@ -218,7 +301,7 @@ public class BleHeartRatePlugin extends Plugin {
         @Override public void onServicesDiscovered(BluetoothGatt g, int status) {
             try {
                 BluetoothGattCharacteristic c = g.getService(HRS) == null ? null : g.getService(HRS).getCharacteristic(HRM);
-                if (c == null) { fail("no heart rate service on this device"); return; }
+                if (c == null) { fail("no heart rate service: on a Mi Band, turn on activity heart rate sharing and discoverable in its app, then start a workout mode on the band"); return; }
                 g.setCharacteristicNotification(c, true);
                 BluetoothGattDescriptor d = c.getDescriptor(CCCD);
                 if (d == null) { fail("no notification descriptor"); return; }
@@ -227,6 +310,11 @@ public class BleHeartRatePlugin extends Plugin {
             } catch (SecurityException e) { fail("permission"); }
         }
         @Override public void onDescriptorWrite(BluetoothGatt g, BluetoothGattDescriptor d, int status) {
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                Log.d(TAG, "descriptor write status " + status);
+                fail(status == 5 || status == 8 || status == 15 ? "the band wants to be paired with this phone first (Bluetooth settings)" : "the band refused the subscription (" + status + ")");
+                return;
+            }
             connectedAddress = g.getDevice().getAddress();
             Log.d(TAG, "subscribed to heart rate on " + connectedAddress);
             PluginCall c = pendingConnect;
