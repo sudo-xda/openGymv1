@@ -1,77 +1,156 @@
 # Changelog
 
-## Unreleased
+## v1.5.0 (2026-10-27)
 
-- The Health tab, redrawn around the numbers that decide the day: the resting heart rate leads
-  the heart card with its delta against the seven-day average; the day's curve is shaded by
-  heart-rate zone with the band's workouts marked on it and clock hours on the axis; the night
-  is a hypnogram (stages over the hours) above the totals; fourteen dots coloured by recovery
-  score jump between days; the 30-day trends say this week against last and open to a full
-  chart with the seven-day mean; empty states say why and offer the fix.
-- The live heart rate in the workout header is coloured by zone, with the last minute as a
-  sparkline and the zone number beside it.
-- Home: the Recovery card carries the Coach — one line from the open thread and a tap into the
-  chat — so the morning is one card, not two. The Coach's own door stays for a Home without the
-  recovery engine.
-- The finish summary reads in one screen: the numbers and the Coach's read first, then Heart and
-  body, then Details, as folds.
-- One tile row and one section header across Home, Health and Nutrition.
-- Band heart rate over Bluetooth: finding a Mi Band works now — the band does not advertise the
-  Heart Rate Service, so the picker no longer filters the scan on it; it lists the band the phone
-  is already connected to first, then anything advertising a heart rate, then band-like names,
-  and says plainly when sharing is off on the band or the band wants pairing. At Finish the
-  live stream is written onto the workout — average, peak, the per-minute curve, minutes in
-  zones, every set — so the summary charts it, the share card gets a heart-rate tile with a
-  sparkline, and the Coach's debrief reads the heart of the session.
+The Coach learns to talk, writes up every workout by itself, and reads your body: a fitness
+band's night, heart and day come in through Health Connect, and its live heart rate over
+Bluetooth. Nutrition joins the log. Everything the AI reads is on your own server or your own
+phone, through the same consent screen as before, with two new categories on it.
 
-The Coach learns to talk, and to write up every workout by itself.
+### The Coach, in conversation
 
-- **Ask the Coach anything.** The chat answers in one call, in seconds, like a chat should: a short coaching persona and a compact snapshot of your training and food, words back, no queue. It takes a plain question now — "how is my bench going",
-  "how much protein for my goal", "cues for a better squat" — and answers in prose from your
-  whole log: the recent sessions set by set, the stall picture, your body weight, and a summary
-  of everything you have ever logged (how long, how often, every lift's first and best). Answers
-  come as formatted text: headings, lists, tables, callouts. Each one has Copy and Regenerate.
-  Plans still change only through a review.
+- **Ask the Coach anything.** The chat answers in one call, in seconds, like a chat should: a
+  short coaching persona and a compact snapshot of your training, food and body, words back, no
+  queue. A plain question — "how is my bench going", "how much protein for my goal", "cues for a
+  better squat", "why was today harder" — is answered in prose from your whole log: the recent
+  sessions set by set, the stall picture, your body weight, a summary of everything you have
+  ever logged (how long, how often, every lift's first and best), and the phone's day from the
+  band (recovery score, resting heart rate, sleep, steps, the week's zone minutes, the training
+  load, the energy balance). Answers are formatted: headings, lists, tables, callouts; each one
+  has Copy and Regenerate. Plans still change only through a review.
 - **Conversations as threads.** A slide-out drawer lists every chat under Today, Yesterday,
   Previous 7 days and Older, with search. New chat, rename, delete; a thread names itself from
   your first message and the Coach offers a better title. An existing chat becomes Thread #1.
 - **A new face for the chat.** A frosted header with a live status pill naming the provider and
   model, a greeting with this week's volume, sessions, streak and body weight, and starter
   questions in four groups: Workouts, Nutrition, Progress, Technique. A phone that brought its
-  own API key and lost it is asked for it right there, in a small modal.
+  own API key and lost it is asked for it right there, in a small modal. Messages render as
+  Markdown; the input floats above the keyboard.
+- **The Coach from Home.** The Recovery card carries the Coach: one line from the open thread
+  and a tap into the chat. Without the recovery engine a chat-bubble card does the same. The
+  questionnaire can be skipped: one tap opens the chat with whatever was answered, and the
+  questions wait in the chat's menu under Edit my answers. Settings → Your name sets what Home,
+  the chat and the Coach call you; it is the only name ever sent, and only when you typed it.
+
+### The Coach writes first
+
+- **AI workout summary.** Finish a workout and the Coach's debrief is written at once, under the
+  finish summary: a score out of ten, what went well, what to watch, what to do next time — read
+  against the same routine's earlier sessions and your all-time bests, not just last week. When
+  the band was on, it reads the heart too: the average and peak, the minutes in zones 4 and 5,
+  how the rate fell between sets, and whether the same work cost more or less heart than before.
+  Kept in the Coach's history and in the chat. Off switch in the chat's menu.
+- **Morning briefing.** After the band's reading on the first open of the day: the night,
+  yesterday, and the call for today with the auto-regulation verdict, in its own thread and on
+  the Recovery card. A switch in the chat's menu; on demand from the starters.
+- **Weekly review.** On the first open of a week: training, recovery, nutrition and two focuses
+  for the week ahead, this week against the last, with numbers. Its own thread, its own switch.
+- **Auto-regulation, one tap.** A resting heart rate above the seven-day average, low HRV, or a
+  short, shallow night makes the Coach say so explicitly — about 15% off the working weights,
+  fewer sets, nothing to failure, or a lighter session. In a workout, a banner offers to take
+  15% off the sets still to do and keep the session out of progression, in one tap.
 - **Summaries you can come back to.** Every AI workout summary is listed in Stats with its score
   and opens whole; a past workout's sheet shows its summary too; and the share card carries the
   Coach's score and sentence once the summary has been written.
-- **AI workout summary.** Finish a workout and the Coach's debrief is written at once, under the
-  finish summary: the score, what went well, what to watch, what to do next time — read against
-  the same routine's earlier sessions and your all-time bests, not just last week. Kept in the
-  Coach's history and in the chat. Off switch in the chat's menu (Auto workout summary).
+
+### Nutrition
+
+- **A food log, from Home.** Meals with calories and macros, water, and daily targets the app
+  suggests from your body weight and goal. Log a meal three ways: a quick-add list of common
+  foods at USDA servings (type "2 eggs and toast" and it reads the words), the numbers typed in,
+  or **Describe** it and the Coach reads it into items. The server checks every calorie figure
+  against the macros and adds the totals up itself, so the model's arithmetic is never trusted.
+- **What should I eat next?** asks for three meals that fit what is left of the day, each
+  loggable with one tap.
+- **Energy balance.** With a band, the day's intake against the band's calories burned: surplus
+  or deficit, on the Nutrition screen. The workout summary, the briefing, the review and the chat
+  read the day's food too.
+
+### The band (Android, Health Connect)
+
+- **Recovery engine.** Settings → Data → Recovery from Health Connect. Turn it on and a Recovery
+  card at the top of Home shows the night (deep, light, REM, awake), the resting heart rate
+  against the seven-day average, HRV, steps and a 0–100 score with a readiness word and one line
+  on what to do with today's session. Read once a day on the first open and on demand. Flags
+  say what pulled the score down: resting HR up, short sleep, little deep/REM, restless, HRV
+  down.
+- **Health, the whole picture.** A Health tab, in the bar in the Plan tab's place while the
+  engine is on (Plan stays on Home's week card and in Settings), with everything the band writes
+  to Health Connect, day by day: the heart rate's curve, the night by stage, steps, distance,
+  calories, the band's own workouts with their heart rate, blood oxygen, breathing rate, weight
+  and body fat, VO₂ max, blood pressure, temperature, basal rate. The Body card fills from the
+  app's own weigh-ins and measurements where the band has none, with BMI from a height you set
+  and the maximum heart rate the zones are drawn from (set it, or the highest peak recorded, or
+  220 minus your age).
+- **The band and the log, joined.** A band session beside the workout it was, which gets the
+  band's heart rate per set, the rest after it, the session's curve and its minutes in five
+  zones — the same fields the Apple Watch writes, so History reads them the same way. A walk, a
+  run or a ride the band recorded is logged as a cardio workout with its minutes, speed,
+  calories and heart rate — on a tap, or by itself with Settings → Recovery → Log band cardio
+  automatically. Stats gains a training load (TRIMP from the heart rate, or the work sets without
+  a band), the 7-against-28-day ratio with a word on it (fresh, steady, high, spike) and 28 days
+  of bars, plus 30 days of readiness, resting heart rate and sleep.
+- **Live heart rate over Bluetooth.** A Mi Band with *Discoverable* and *Activity heart rate
+  sharing* on in the Zepp app and a workout mode running — or any chest strap — shows its rate
+  live in the workout header, coloured by zone with the last minute as a sparkline, and writes
+  every set's average and peak and the rest after it as the set is ticked. At Finish the whole
+  stream goes onto the workout: average, peak, the per-minute curve, minutes in zones, every set
+  the ticks missed. Finding the band works with a Mi Band, which does not advertise the Heart
+  Rate Service: the picker lists the band the phone is already connected to first, then anything
+  advertising a heart rate, then band-like names, and says plainly when sharing is off on the
+  band or the band wants pairing.
+
+### The Health tab, at a glance
+
+- The heart card leads with the resting heart rate and its delta against the seven-day average,
+  orange when up, green when down. The day's curve is shaded by heart-rate zone, the band's
+  workouts are marked on it with their names, and the axis reads in clock hours.
+- The night is a hypnogram — awake, REM, light, deep over the hours — above the totals and the
+  stage bar.
+- Fourteen dots coloured by recovery score jump between days.
+- The 30-day trends say this week against last and open to a full chart with the seven-day mean.
+- Empty states say why and offer the fix: Refresh, Allow sleep, start a mode on the band.
+
+### Workouts and sharing
+
 - **Share a workout card.** From the finish summary and from any past session: a dark card with
-  the duration, sets, volume, a PR badge, the top lifts and the new records, as a 9:16 story, a
-  1:1 square or the fitted card, previewed before it goes to the share sheet or your downloads.
-- **Recovery from Health Connect (Android).** Turn it on and a Recovery card at the top of Home shows the night (deep, light, REM), the resting heart rate against the week, HRV, steps and a 0–100 score, with one line on what to do with today's session. Read once a day on the first open and on demand. The Coach reads the same numbers and follows an auto-regulation protocol: a high resting heart rate, low HRV or a short, shallow night means it suggests about 15% off the working weights or a lighter day. A new consent category, so the consent screen is shown once more.
-- **The Coach writes first.** A morning briefing after the band's reading — the night, yesterday, and the call for today with the auto-regulation verdict — and a weekly review on the first open of a week: training, recovery, nutrition and two focuses, this week against the last, with numbers. Each in its own thread, each a switch, each on demand. The chat, the briefing and the review carry the phone's day (the band's heart rate, steps, calories, the energy balance, the training load, the week's zones); a workout's band figures ride in every debrief. In a workout, when the night says to back off, one tap takes 15% off the sets still to do and keeps the session out of progression.
-- **The band and the log, joined (Android).** With the recovery engine on, Health takes the Plan tab's place (Plan stays on Home's week card and in Settings). A band session beside the workout it was, which gets the band's heart rate per set, the rest after it and its minutes in five zones; a walk or a ride the band recorded logged as a cardio workout on a tap or by itself; Stats with a training load (TRIMP from the heart rate, or the work sets without a band), the 7-against-28-day ratio and 28 days of bars, plus 30 days of readiness, resting heart rate and sleep; the Body card filled from the app's own weigh-ins and measurements with BMI from a height you set; the Nutrition screen's balance against the band's calories.
-- **Health, the whole picture (Android).** A Health screen with everything the band writes to Health Connect, day by day: the heart rate's curve, the night by stage, steps, distance, calories, the band's own workouts with their heart rate, blood oxygen, breathing, weight and body fat, VO₂ max, blood pressure. A finished workout gets its heart rate from Health Connect — every set's average and peak, the rest after it, the session's curve — the same fields the Apple Watch writes. And a band that shares its heart rate over Bluetooth (a Mi Band in workout mode, any chest strap) shows it live in the workout header and writes it onto each set as it is ticked.
-- **The Coach from Home.** A chat-bubble card on Home opens the conversation, showing the
-  last thing said. The questionnaire can be skipped: one tap opens the chat with whatever was
-  answered, and the questions wait in the chat's menu under Edit my answers. Settings → Your
-  name sets what Home, the chat and the Coach call you; it is the only name ever sent, and
-  only when you typed it there.
-- **Nutrition.** A food log, from Home: meals with calories and macros, water, and daily targets
-  the app suggests from your body weight and goal. Log a meal three ways: a quick-add list of
-  common foods at USDA servings (type "2 eggs and toast" and it reads the words), the numbers
-  typed in, or **Describe** it and the Coach reads it into items. The server checks every
-  calorie figure against the macros and adds the totals up itself, so the model's arithmetic is
-  never trusted. **What should I eat next?** asks for three meals that fit what is left of the
-  day, each loggable with one tap. The workout summary and the chat read the day's food too.
-  Nutrition is a new data category on the Coach's consent screen, so it is shown once more.
+  the duration, sets, volume, a PR badge, the top lifts, the new records, the Coach's score and
+  sentence, and — when the band was on — a heart-rate tile with a sparkline of the session. As
+  a 9:16 story, a 1:1 square or the fitted card, previewed before it goes to the share sheet or
+  your downloads.
+- **The finish summary reads in one screen.** The numbers and the Coach's read first, then Heart
+  and body (the heart-rate chart with zones, the body map), then Details (last and next, cardio,
+  a photo), as folds.
 - **Muscle recovery.** A card in Stats puts a recovery percentage on all 18 muscles from the
-  fatigue model — load, sets to failure, each muscle's recovery half-life — colour-coded Ready
-  to train, Recovering, Fatigued, with a count of each.
-- Self-hosting: one new route, `POST /api/coach/ask`, documented in `api/openapi.yaml`; the
-  public config names the Coach's model. Developers on Windows: the fixture provider's path is
-  resolved properly now, so the queue tests run there too.
+  fatigue model — load, sets to failure, each muscle's recovery half-life — colour-coded Ready to
+  train, Recovering, Fatigued, with a count of each.
+- One tile row and one section header across Home, Health and Nutrition; one chart component
+  carries hours, zones and spans.
+
+### Privacy
+
+- Two new consent categories, nutrition and biometrics, so the Coach's consent screen is shown
+  once more. The band's data is read into day summaries kept on the phone; the recovery figures
+  the Coach reads are in the synced state like the rest of your log. The band's Bluetooth address
+  and the health day summaries never leave the phone. Your account name is never sent; only a
+  display name you typed under Settings → Your name is.
+- A phone that brings its own API key keeps it in the platform's secure storage — the Keystore on
+  Android, the Keychain on iOS — never in the synced state, never in localStorage.
+
+### Self-hosting and developers
+
+- New routes, documented in `api/openapi.yaml`: `POST /api/coach/ask` (chat, briefing and weekly
+  modes, with an optional device block from the phone) and `POST /api/coach/meal` (a meal in
+  words or three suggestions). The public config names the Coach's model.
+- The sync merge knows the new per-day maps (water, biometrics) and own-merged keys (meals,
+  nutrition targets); `api/sync-stamps.js` mirrors the client.
+- Android: `HealthConnectPlugin` reads every Health Connect type the app declares;
+  `BleHeartRatePlugin` speaks the standard Heart Rate Service with no library. The manifest
+  declares the read permissions and the Bluetooth permissions (scan never for location).
+- `scripts/build-android-local.sh` builds the app with a toolchain under `.toolchain/` (JDK 21,
+  SDK, Gradle), nothing global.
+- Developers on Windows: the fixture provider's path is resolved properly, so the queue tests run
+  there too.
 
 ## v1.4.2 (2026-10-23)
 
