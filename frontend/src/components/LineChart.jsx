@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { fmtNum, fmtDate, MONTHS, isoOf } from '../lib/format.js'
+import { dateLocale } from '../lib/i18n-core.js'
 import { t } from '../lib/i18n.js'
 
 const W = 340   // viewBox width; the svg stretches to its container, height comes from `h`
@@ -9,13 +10,16 @@ const W = 340   // viewBox width; the svg stretches to its container, height com
 //        more of it). Used for effort on the weight curve, where the two belong on one line:
 //        the same weight with less left in the tank is not the same session.
 //   note extra text for that point's tooltip.
-// opts: { h, unit, color, axes, goal, invert, series }
+// opts: { h, unit, color, axes, goal, invert, series, time }
+//   time reads the x axis as hours of one day (a day's heart-rate curve): the ticks are round
+//   hours and the tooltip says the clock time, not the date.
 //   invert flips the y axis, for a scale that counts down as it gets harder (RIR). Without it
 //   a curve of reps-in-reserve reads upside down, with the hardest sets at the floor.
 //   series draws several lines instead of one: [{ points, color }] (issue #145, one per set
 //   number). `points` then only anchors the hover — one per date, its `note` the tooltip — and
 //   the y axis spans every series.
-export default function LineChart({ points, h = 150, unit = '', color = 'var(--acc)', axes = true, goal = null, invert = false, series = null }) {
+const clock = ms => new Date(ms).toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' })
+export default function LineChart({ points, h = 150, unit = '', color = 'var(--acc)', axes = true, goal = null, invert = false, series = null, time = false }) {
   const svgRef = useRef(null)
   const wrapRef = useRef(null)
   const tipRef = useRef(null)
@@ -82,9 +86,18 @@ export default function LineChart({ points, h = 150, unit = '', color = 'var(--a
     }
     const d0 = new Date(t0), d1 = new Date(t1)
     const ticks = []
-    let m = new Date(d0.getFullYear(), d0.getMonth() + 1, 1)
-    while (m <= d1) { ticks.push({ t: +m, txt: t(MONTHS[m.getMonth()]) }); m = new Date(m.getFullYear(), m.getMonth() + 1, 1) }
-    if (ticks.length === 0 && !single) {
+    if (time && !single) {
+      // Round hours, at a step that gives six ticks or fewer across the span.
+      const hours = (t1 - t0) / 3600000
+      const step = [1, 2, 3, 4, 6, 12].find(x => hours / x <= 6) || 24
+      const first = new Date(d0); first.setMinutes(0, 0, 0); if (+first < t0) first.setHours(first.getHours() + 1)
+      first.setHours(Math.ceil(first.getHours() / step) * step)
+      for (let m = new Date(first); m <= d1; m.setHours(m.getHours() + step)) ticks.push({ t: +m, txt: clock(+m) })
+    } else {
+      let m = new Date(d0.getFullYear(), d0.getMonth() + 1, 1)
+      while (m <= d1) { ticks.push({ t: +m, txt: t(MONTHS[m.getMonth()]) }); m = new Date(m.getFullYear(), m.getMonth() + 1, 1) }
+    }
+    if (ticks.length === 0 && !single && !time) {
       for (let i = 0; i <= 2; i++) {
         const tv = t0 + (t1 - t0) * i / 2, dd = new Date(tv)
         ticks.push({ t: tv, txt: dd.getDate() + ' ' + t(MONTHS[dd.getMonth()]), anchor: i === 0 ? 'start' : i === 2 ? 'end' : 'middle' })
@@ -166,7 +179,7 @@ export default function LineChart({ points, h = 150, unit = '', color = 'var(--a
       {hover && <div className="ctip" ref={tipRef}>
         {multi
           ? <>{fmtDate(hover.iso, true, showYear)}{hover.note ? ' · ' + hover.note : ''}</>
-          : <>{fmtDate(hover.iso, true, showYear)} · {fmtNum(hover.v)}{unit ? ' ' + unit : ''}{hover.note ? ' · ' + hover.note : ''}</>}
+          : <>{time ? clock(hover.t) : fmtDate(hover.iso, true, showYear)} · {fmtNum(hover.v)}{unit ? ' ' + unit : ''}{hover.note ? ' · ' + hover.note : ''}</>}
       </div>}
     </div>
   )

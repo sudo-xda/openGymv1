@@ -117,7 +117,7 @@ export default function Health() {
           <div><b>{s.hr.max}</b><span>{t('Peak')}</span></div>
           <div><b>{s.hrv != null ? fmtNum(s.hrv) : '–'}</b><span>{t('HRV ms')}</span></div>
         </div>
-        <div className="chart"><LineChart points={hrPoints} h={140} unit="bpm" color="var(--red)" /></div>
+        <div className="chart"><LineChart points={hrPoints} h={140} unit="bpm" color="var(--red)" time /></div>
         <div className="zones-legend" style={{ marginTop: 4 }}>{zoneBounds(maxHrOf(S)).map(z => <span key={z.zone}><i style={{ background: ['var(--blue)', 'var(--teal)', 'var(--green)', 'var(--orange)', 'var(--red)'][z.zone - 1] }} />Z{z.zone} {z.from}–{z.to}</span>)}</div>
       </> : <div className="muted small">{t('No heart-rate samples for this day.')}</div>}
     </div>

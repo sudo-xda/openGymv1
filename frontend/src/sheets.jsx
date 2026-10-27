@@ -3755,7 +3755,7 @@ function WorkoutHeartRate({ w, auto = false }) {
       {rec.hrFrom === 'health' && <span className="small dim">{t('from Health Connect')}</span>}
       {rec.hrFrom === 'band-live' && <span className="small dim">{t('live from the band')}</span>}
     </div>}
-    {!!rec.hrSeries?.length && <div className="chart"><LineChart points={rec.hrSeries.map(([x, y]) => ({ t: x, y }))} h={90} unit="bpm" color="var(--red)" axes={false} /></div>}
+    {!!rec.hrSeries?.length && <div className="chart"><LineChart points={rec.hrSeries.map(([x, y]) => ({ t: x, y }))} h={90} unit="bpm" color="var(--red)" axes={false} time /></div>}
     {!!rec.hrZones?.some(Boolean) && <>
       <div className="zones" aria-hidden="true">{rec.hrZones.map((m, i) => <i key={i} style={{ width: (m / rec.hrZones.reduce((n, x) => n + x, 0) * 100) + '%', background: ZONE_COLORS[i] }} />)}</div>
       <div className="zones-legend">{rec.hrZones.map((m, i) => m > 0 && <span key={i}><i style={{ background: ZONE_COLORS[i] }} />{t(ZONE_NAMES[i])} {m} {t('min')}</span>)}</div>

@@ -111,3 +111,21 @@ describe('LineChart y axis', () => {
     expect(labels.some(l => /^[-\u2212]0$/.test(l))).toBe(false)
   })
 })
+
+describe('LineChart time axis', () => {
+  it('labels a day\'s curve with round clock hours and says the time on hover, never the date', () => {
+    const t0 = new Date(2026, 9, 26, 6, 20).getTime()
+    const points = []
+    for (let i = 0; i <= 12 * 6; i++) points.push({ t: t0 + i * 10 * 60000, y: 60 + (i % 7) * 5 })   // 06:20 → 18:20
+    act(() => root.render(<LineChart points={points} axes unit="bpm" time />))
+    const labels = [...container.querySelectorAll('text')].map(n => n.textContent)
+    const hours = labels.filter(l => /:00/.test(l))
+    expect(hours.length).toBeGreaterThanOrEqual(4)                       // 2-hour step over 12 h: 08, 10, 12, 14, 16, 18
+    expect(hours.some(l => /0?8:00/.test(l))).toBe(true)
+    expect(labels.some(l => /Oct|26 /.test(l))).toBe(false)
+    hoverAt(5)
+    const tip = container.querySelector('.ctip').textContent
+    expect(tip).toMatch(/0?6:20/)
+    expect(tip).not.toContain(fmtDate(isoOf(new Date(t0)), true))
+  })
+})
