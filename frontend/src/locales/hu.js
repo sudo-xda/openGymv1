@@ -171,6 +171,10 @@ export default {
   'Finish early?': 'Korábban befejezed?',
   '{0} set still unchecked. Finish the workout now?': '{0} sorozat még nincs kipipálva. Befejezed most az edzést?',
   '{0} sets still unchecked. Finish the workout now?': '{0} sorozat még nincs kipipálva. Befejezed most az edzést?',
+  '{0} overlapping record': '{0} átfedő bejegyzés',
+  '{0} overlapping records': '{0} átfedő bejegyzés',
+  'Heart rate on {0} set': 'Pulzus {0} sorozaton',
+  'Heart rate on {0} sets': 'Pulzus {0} sorozaton',
   // --- workout view ---
   'Start workout': 'Edzés indítása',
   'today is {0}': 'ma {0} van',

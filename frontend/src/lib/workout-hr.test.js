@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseHr, setSpans, workoutHr, applyWorkoutHr, liveSetHr, SET_SPAN_MS } from './workout-hr.js'
+import { parseHr, setSpans, workoutHr, applyWorkoutHr, applyLiveHr, liveSetHr, SET_SPAN_MS } from './workout-hr.js'
 
 const T0 = Date.parse('2026-10-26T18:00:00Z')
 const m = n => T0 + n * 60000
@@ -70,5 +70,29 @@ describe('liveSetHr', () => {
     const stream = [{ at: m(1), bpm: 110 }, { at: m(2), bpm: 130 }, { at: m(3), bpm: 150 }]
     expect(liveSetHr(stream, m(1), m(3))).toEqual({ avg: 130, max: 150 })
     expect(liveSetHr(stream, m(10), m(12))).toBeNull()
+  })
+})
+
+describe('applyLiveHr', () => {
+  // The band's stream at finish: 120 during set 1, 90 at rest, 150 during set 2, then 100.
+  const stream = () => [
+    ...run(m(4) - SET_SPAN_MS, m(4), 120), ...run(m(4), m(8) - SET_SPAN_MS, 90), ...run(m(8) - SET_SPAN_MS, m(8), 150), ...run(m(8), m(30), 100)
+  ].map(([t, bpm]) => ({ at: t, bpm }))
+  it('writes the session curve, its zones and the sets the ticks missed, marked live from the band', () => {
+    const w = workout()
+    const r = applyLiveHr(w, stream(), 190)
+    expect(r.samples).toBeGreaterThan(100)
+    expect(w.hrFrom).toBe('band-live')
+    expect(w.hr).toEqual({ avg: r.hr.avg, max: 150 })
+    expect(w.hrSeries.length).toBeGreaterThanOrEqual(25)
+    expect(w.hrZones.reduce((n, x) => n + x, 0)).toBeGreaterThan(20)
+    expect(w.entries[0].sets[0].hr).toEqual({ avg: 120, max: 120 })
+    expect(w.entries[0].sets[1].hr).toEqual({ avg: 150, max: 150 })
+    expect(w.entries[1].sets[0].hr).toEqual({ avg: 100, max: 110 })   // the tick's own figure stays
+  })
+  it('leaves a workout alone when the stream holds nothing from its time', () => {
+    const w = workout()
+    expect(applyLiveHr(w, [{ at: m(-200), bpm: 70 }, { at: m(-199), bpm: 71 }, { at: m(-198), bpm: 72 }], 190)).toBeNull()
+    expect(w.hr).toBeUndefined(); expect(w.hrFrom).toBeUndefined(); expect(w.hrZones).toBeUndefined()
   })
 })

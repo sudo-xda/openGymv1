@@ -10,7 +10,7 @@ import { MOBILE, nativePlatform, readJsonFile, writeJsonFile } from './mobile.js
 import { liveSetHr } from './workout-hr.js'
 
 export const LIVE_HR_FILE = 'opengym-live-hr.json'
-const KEEP_MS = 30 * 60000      // half an hour of samples is more than any set and its rest
+const KEEP_MS = 4 * 3600000     // the whole session's curve is reduced onto the workout at finish
 
 let pluginP = null
 const plugin = () => pluginP || (pluginP = (async () => {
@@ -109,6 +109,8 @@ export async function stopLiveHr() {
   lastBpm = null
 }
 
+/** Every sample the stream still holds, oldest first — reduced onto the workout at finish (lib/workout-hr.js applyLiveHr). */
+export const liveSamples = () => samples.slice()
 /** The set's figure from the stream between two moments — null without readings. */
 export const setHrSince = (from, to = Date.now()) => liveSetHr(samples, from, to)
 /** The newest sample's time, so a set can be measured from the previous tick or the connection. */

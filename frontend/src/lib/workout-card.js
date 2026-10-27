@@ -54,6 +54,7 @@ export function workoutCardModel(w, { unit, nameOf, ai = null }) {
   const day = workoutDay(w)
   const ms = workoutDuration(w)
   const levels = levelsOf(loadOfWorkouts([w]))
+  const hr = w.hr && Number.isFinite(Number(w.hr.avg)) && Number(w.hr.avg) > 0 ? { avg: Math.round(Number(w.hr.avg)), max: Math.round(Number(w.hr.max) || Number(w.hr.avg)) } : null
   // The heaviest work of the session: each exercise's best set by estimated 1RM, the top three.
   // A bodyweight or timed exercise has no estimate and stays out, as it does in Stats.
   const topLifts = entries.map(e => {
@@ -75,7 +76,11 @@ export function workoutCardModel(w, { unit, nameOf, ai = null }) {
       ...(ms >= 60000 ? [{ label: t('Duration'), value: fmtDur(ms) }] : []),
       { label: t('Sets'), value: fmtNum(sets) },
       { label: t('Volume'), value: fmtVol(w.vol ?? workoutVolume(w), unit) },
+      // The band's session figure, when one was recorded: average, then peak.
+      ...(hr ? [{ label: t('Heart rate'), value: `${hr.avg}·${hr.max}` }] : []),
     ],
+    // The session's curve, one point a minute, for a sparkline under the tiles.
+    hrSeries: hr && Array.isArray(w.hrSeries) && w.hrSeries.length >= 3 ? w.hrSeries.map(([x, y]) => [Number(x), Number(y)]).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y)) : null,
     records: records.map(r => r.name),
     levels: MUSCLES.some(m => levels[m] > 0) ? levels : null,
   }
@@ -199,6 +204,20 @@ function flowCard(model, { measure, rtl, width, map, lifts, records: maxRecords,
     items.push({ kind: 'text', text: stat.value, x: textX, y: y + tileH - 32, size, weight: 700, color: 'label' })
   })
   y += tileH
+
+  // The heart's line across the session, under the numbers: a sparkline, no axes.
+  if (model.hrSeries && model.hrSeries.length >= 3) {
+    y += 28
+    const h = 110
+    const xs = model.hrSeries.map(p => p[0]), ys = model.hrSeries.map(p => p[1])
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys)
+    const points = model.hrSeries.map(([px, py]) => [
+      start + dir * (x1 > x0 ? (px - x0) / (x1 - x0) : 0.5) * inner,
+      y + h - (y1 > y0 ? (py - y0) / (y1 - y0) : 0.5) * h,
+    ])
+    items.push({ kind: 'spark', x: Math.min(start, end), y, w: inner, h, points })
+    y += h
+  }
 
   // Front and back side by side, as large as the width allows without running past a phone
   // screen, with the finish summary's five-step legend under them.
@@ -381,6 +400,16 @@ export function drawWorkoutCard(ctx, layout, colors, map = null, family = CARD_F
       ctx.fillStyle = colors.tile || colors.bg
       roundRect(ctx, item.x, item.y, item.w, item.h, 28)
       ctx.fill()
+    } else if (item.kind === 'spark') {
+      ctx.save()
+      ctx.strokeStyle = colors.acc
+      ctx.lineWidth = 5
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.beginPath()
+      item.points.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)))
+      ctx.stroke()
+      ctx.restore()
     } else if (item.kind === 'swatch') {
       ctx.fillStyle = shades.levels[item.level]
       roundRect(ctx, item.x, item.y, item.size, item.size, 7)

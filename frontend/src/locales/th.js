@@ -171,6 +171,10 @@ export default {
   'Finish early?': 'จบก่อนกำหนด?',
   '{0} set still unchecked. Finish the workout now?': 'ยังมี {0} เซ็ตที่ยังไม่ติ๊ก จะจบตอนนี้เลยไหม?',
   '{0} sets still unchecked. Finish the workout now?': 'ยังมี {0} เซ็ตที่ยังไม่ติ๊ก จะจบตอนนี้เลยไหม?',
+  '{0} overlapping record': '{0} รายการที่ทับซ้อน',
+  '{0} overlapping records': '{0} รายการที่ทับซ้อน',
+  'Heart rate on {0} set': 'อัตราการเต้นของหัวใจใน {0} เซ็ต',
+  'Heart rate on {0} sets': 'อัตราการเต้นของหัวใจใน {0} เซ็ต',
   // --- workout view ---
   'Start workout': 'เริ่มออกกำลังกาย',
   'today is {0}': 'วันนี้คือ {0}',

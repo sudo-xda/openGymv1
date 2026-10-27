@@ -493,8 +493,13 @@ Mi Band does not put the service in its advertisement, so the list is not filter
 whether the band really shares is settled when a workout connects — and remembers the band on
 this phone. With **Use during workouts** on, the app connects as a workout starts, shows the live rate
 in the workout header, and writes every set's average and peak and the rest after it as the set
-is ticked — live, without waiting for the band's app to sync. Android 12 and up asks for the
-Bluetooth permissions once; older Androids ask for location, which scanning needs there.
+is ticked — live, without waiting for the band's app to sync. At Finish the whole stream is
+reduced onto the saved workout: the session's average and peak, its per-minute curve and its
+minutes in the five zones, and any set the ticks missed — so the finish summary charts the
+heart's line under the numbers, the share card carries a heart-rate tile and a sparkline, the
+history sheet shows the same, and the Coach's debrief reads the average, the peak, the minutes
+in zones 4 and 5 and how the rate fell between sets. Android 12 and up asks for the Bluetooth
+permissions once; older Androids ask for location, which scanning needs there.
 
 ### The band and the log, joined
 

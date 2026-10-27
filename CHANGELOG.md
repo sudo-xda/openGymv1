@@ -5,7 +5,10 @@
 - Band heart rate over Bluetooth: finding a Mi Band works now — the band does not advertise the
   Heart Rate Service, so the picker no longer filters the scan on it; it lists the band the phone
   is already connected to first, then anything advertising a heart rate, then band-like names,
-  and says plainly when sharing is off on the band or the band wants pairing.
+  and says plainly when sharing is off on the band or the band wants pairing. At Finish the
+  live stream is written onto the workout — average, peak, the per-minute curve, minutes in
+  zones, every set — so the summary charts it, the share card gets a heart-rate tile with a
+  sparkline, and the Coach's debrief reads the heart of the session.
 
 The Coach learns to talk, and to write up every workout by itself.
 

@@ -313,3 +313,18 @@ describe('the Coach\'s verdict on the card', () => {
     }
   })
 })
+
+describe('heart rate on the card', () => {
+  const nameOf = e => e.id
+  it('adds a heart-rate tile and the session curve when the band recorded one, nothing otherwise', () => {
+    const w = { name: 'Push', d: '2026-10-26', start: 1, end: 60 * 60000 + 1, entries: [{ id: 'a', sets: [{ w: 60, r: 5, done: true }] }], hr: { avg: 131.4, max: 168 }, hrSeries: [[0, 90], [60000, 130], [120000, 160], [180000, 120]] }
+    const m = workoutCardModel(w, { unit: 'kg', nameOf })
+    expect(m.stats.at(-1)).toEqual({ label: 'Heart rate', value: '131·168' })
+    expect(m.hrSeries).toHaveLength(4)
+    const layout = layoutWorkoutCard(m, { measure: (s, _w, size) => s.length * size * 0.55 })
+    expect(layout.items.some(i => i.kind === 'spark' && i.points.length === 4)).toBe(true)
+    const plain = workoutCardModel({ ...w, hr: undefined, hrSeries: undefined }, { unit: 'kg', nameOf })
+    expect(plain.stats.some(s => s.label === 'Heart rate')).toBe(false)
+    expect(plain.hrSeries).toBeNull()
+  })
+})

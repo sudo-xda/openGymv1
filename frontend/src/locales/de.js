@@ -180,6 +180,10 @@ export default {
   'Finish early?': 'Früher beenden?',
   '{0} set still unchecked. Finish the workout now?': '{0} Satz noch offen. Training jetzt beenden?',
   '{0} sets still unchecked. Finish the workout now?': '{0} Sätze noch offen. Training jetzt beenden?',
+  '{0} overlapping record': '{0} überlappende Aufzeichnung',
+  '{0} overlapping records': '{0} überlappende Aufzeichnungen',
+  'Heart rate on {0} set': 'Herzfrequenz bei {0} Satz',
+  'Heart rate on {0} sets': 'Herzfrequenz bei {0} Sätzen',
   'Finish workout': 'Training beenden',
   // --- workout view ---
   'Start workout': 'Training starten',

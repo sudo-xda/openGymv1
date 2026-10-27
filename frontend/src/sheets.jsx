@@ -63,7 +63,9 @@ import { editCompletedSession, editLeftEmpty, editedRecord, editChangesNothing }
 import { stampWorkout } from './lib/sync-merge.js'
 import { hrLabel, sanitizeHr } from './lib/heart-rate.js'
 import { fillWorkoutHr } from './lib/workout-hr-fill.js'
-import { ZONE_COLORS, ZONE_NAMES } from './lib/hr-zones.js'
+import { applyLiveHr } from './lib/workout-hr.js'
+import { liveSamples } from './lib/live-hr.js'
+import { ZONE_COLORS, ZONE_NAMES, maxHrOf } from './lib/hr-zones.js'
 import './health.css'
 import { weeklyWeights } from './lib/bodyweight.js'
 import { workoutText } from './lib/workout-text.js'
@@ -3693,6 +3695,10 @@ function doFinishWorkout() {
     snapshotFor: e => isCustomEx(EXIDX[e.id]) ? exerciseMuscleSnapshot(EXIDX[e.id]) : null,
   })
   w.vol = workoutVolume(w)
+  // The band's live stream (lib/live-hr.js), reduced onto the session: its curve, zones and
+  // the sets the ticks did not already write — before the record is saved, so the summary,
+  // the card, the history and the Coach's debrief all read it.
+  if (!past) { try { applyLiveHr(w, liveSamples(), maxHrOf(st)) } catch (e) { console.warn('[live-hr] finish', e) } }
   let shown = w
   update(s => {
     if (past) {
@@ -3741,12 +3747,13 @@ function WorkoutHeartRate({ w, auto = false }) {
     if (!auto) toast(r.ok ? tn('Heart rate on {0} set', 'Heart rate on {0} sets', r.sets) : r.reason === 'nosamples' ? t('No heart-rate samples for this session yet. Sync the band in its app and try again.') : r.reason === 'permission' ? t('Allow reading in Settings → Recovery first.') : t('Could not read Health Connect.'))
   }
   useEffect(() => { if (auto && on && !sanitizeHr(rec.hr)) fill() }, [])
-  if (!on) return null
   const hr = sanitizeHr(rec.hr)
+  if (!on && !hr) return null
   return <div style={{ textAlign: 'start', marginBottom: 12 }}>
     {hr && <div className="row" style={{ gap: 8, alignItems: 'baseline', marginBottom: 6 }}>
       <span style={{ color: 'var(--red)', fontWeight: 600 }}>♥ {hr.avg} <span className="dim small">{t('avg')}</span> · {hr.max} <span className="dim small">{t('peak')}</span></span>
       {rec.hrFrom === 'health' && <span className="small dim">{t('from Health Connect')}</span>}
+      {rec.hrFrom === 'band-live' && <span className="small dim">{t('live from the band')}</span>}
     </div>}
     {!!rec.hrSeries?.length && <div className="chart"><LineChart points={rec.hrSeries.map(([x, y]) => ({ t: x, y }))} h={90} unit="bpm" color="var(--red)" axes={false} /></div>}
     {!!rec.hrZones?.some(Boolean) && <>
@@ -3754,6 +3761,6 @@ function WorkoutHeartRate({ w, auto = false }) {
       <div className="zones-legend">{rec.hrZones.map((m, i) => m > 0 && <span key={i}><i style={{ background: ZONE_COLORS[i] }} />{t(ZONE_NAMES[i])} {m} {t('min')}</span>)}</div>
     </>}
     {!hr && state === 'none' && <div className="small muted">{t('No heart-rate samples for this session in Health Connect yet.')}</div>}
-    <Button size="sm" icon="heart" disabled={state === 'busy'} onClick={fill} style={{ marginTop: 6 }}>{state === 'busy' ? t('Reading…') : hr ? t('Read again') : t('Heart rate from Health Connect')}</Button>
+    {on && <Button size="sm" icon="heart" disabled={state === 'busy'} onClick={fill} style={{ marginTop: 6 }}>{state === 'busy' ? t('Reading…') : hr ? t('Read again') : t('Heart rate from Health Connect')}</Button>}
   </div>
 }

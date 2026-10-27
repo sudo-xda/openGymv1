@@ -6,6 +6,7 @@
 // A set's span runs from the previous tick (or the workout's start) to its own tick (`at`);
 // its rest runs from its tick to the next set's tick. Sets without a tick time (a backfilled
 // workout, an older app) get nothing: there is no span to read.
+import { zonesOf } from './hr-zones.js'
 import { sanitizeHr } from './heart-rate.js'
 
 export const SERIES_STEP_MS = 60000   // the kept series is one point a minute at most
@@ -97,6 +98,21 @@ export function applyWorkoutHr(w, result) {
   }
   if (result.hr) { w.hr = result.hr; w.hrSeries = result.series; w.hrFrom = w.hrFrom || 'health' }
   return n
+}
+
+/**
+ * The band's live stream, reduced onto the finished workout `w` (in place): every set its
+ * average and peak and the rest after it where the tick did not already write one, the session
+ * its figure, its per-minute series and its minutes in zones at `max`; `hrFrom` is 'band-live'.
+ * Returns the reduction, or null when the stream holds nothing from the session.
+ */
+export function applyLiveHr(w, samples, max) {
+  const result = workoutHr(w, samples)
+  if (!result || !result.hr || result.samples < 3) return null
+  w.hrFrom = 'band-live'
+  applyWorkoutHr(w, result)
+  w.hrZones = zonesOf(result.series, max)
+  return result
 }
 
 /** Live samples since a moment, as the set's figure — what the band's stream gives a set at its tick. */
