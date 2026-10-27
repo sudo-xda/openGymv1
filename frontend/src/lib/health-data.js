@@ -77,7 +77,7 @@ export function summarizeDay(data, day) {
     hr: hrDay(data?.hr, w),
     restingHr: restingHrOf(data || {}, day),
     hrv: hrvOf(data?.hrv, day),
-    sleep: sleep ? { deep: sleep.deep, light: sleep.light, rem: sleep.rem, awake: sleep.awake, total: sleep.total, efficiency: sleep.efficiency, from: sleep.from, to: sleep.to } : null,
+    sleep: sleep ? { deep: sleep.deep, light: sleep.light, rem: sleep.rem, awake: sleep.awake, total: sleep.total, efficiency: sleep.efficiency, from: sleep.from, to: sleep.to, stages: (sleep.segments || []).slice(0, 400) } : null,
     steps: stepsOf(data?.steps, day),
     distanceKm: round1(sumInDay(data?.distance, w) / 1000),
     activeKcal: Math.round(sumInDay(data?.activeKcal, w)),

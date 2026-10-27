@@ -3537,6 +3537,16 @@ function CardioDone({ st, w }) {
   </div>
 }
 
+/** A fold of the finish summary: a header that opens and closes it, with a one-line summary beside the title. */
+function Fold({ title, summary, open = false, children }) {
+  const [on, setOn] = useState(open)
+  return <div className="fold" style={{ textAlign: 'start' }}>
+    <button type="button" className="fold-h" aria-expanded={on} onClick={() => setOn(v => !v)}>
+      <span className="fold-t">{title}</span>{summary && !on && <span className="fold-s">{summary}</span>}<Icon name={on ? 'chevronUp' : 'chevronDown'} className="chev" />
+    </button>
+    {on && <div className="fold-b">{children}</div>}
+  </div>
+}
 function FinishSummary({ w, prs, e1prs = [], close }) {
   const st = useStore(s => s.S)
   return <div style={{ textAlign: 'center', padding: '8px 0' }}>
@@ -3552,17 +3562,23 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
       {prs.map(id => <div key={id} className="small accent row" style={{ gap: 5 }}><Icon name="trophy" style={{ fontSize: 13 }} />{t('New PR:')} <span className={exerciseNameClass(EXIDX[id])}>{EXIDX[id] ? exerciseNameFor(EXIDX[id]) : id}</span></div>)}
       {e1prs.map(p => <div key={p.id} className="small accent row" style={{ gap: 5 }}><Icon name="chartLine" style={{ fontSize: 13 }} />{t('Best estimated 1RM:')} <span className={exerciseNameClass(EXIDX[p.id])}>{EXIDX[p.id] ? exerciseNameFor(EXIDX[p.id]) : p.id}</span> · {fmtNum(p.est)} {st.unit}</div>)}
     </div>}
-    <WorkoutHeartRate w={w} auto />
-    <h4 className="sec" style={{ textAlign: 'start' }}>{t('What you just trained')}</h4>
-    <BodyMap load={loadOfWorkouts([w])} body={st.body} />
-    <div style={{ height: 14 }} />
-    <LastAndNext st={st} w={w} />
-    <CardioDone st={st} w={w} />
-    {/* The moment for a progress photo or the clip of a set: the workout is already saved, so
-        what is added here goes straight onto its record. */}
-    <div style={{ textAlign: 'start' }}><WorkoutMediaSection w={w} hint /></div>
     {/* The Coach's read of the session, written as soon as it is saved (lib/coach.js autoDebrief). */}
     <AutoDebrief w={w} close={close} />
+    {/* The rest in two folds, so the sheet reads in one screen: the heart and the body, then
+        the detail — what moved, the cardio, a photo. */}
+    <Fold title={t('Heart and body')} summary={sanitizeHr((st.workouts.find(x => sameWorkout(x, w)) || w).hr) ? `♥ ${sanitizeHr((st.workouts.find(x => sameWorkout(x, w)) || w).hr).avg} · ${sanitizeHr((st.workouts.find(x => sameWorkout(x, w)) || w).hr).max}` : null} open>
+      <WorkoutHeartRate w={w} auto />
+      <h4 className="sec" style={{ textAlign: 'start' }}>{t('What you just trained')}</h4>
+      <BodyMap load={loadOfWorkouts([w])} body={st.body} />
+    </Fold>
+    <Fold title={t('Details')}>
+      <div style={{ height: 8 }} />
+      <LastAndNext st={st} w={w} />
+      <CardioDone st={st} w={w} />
+      {/* The moment for a progress photo or the clip of a set: the workout is already saved, so
+          what is added here goes straight onto its record. */}
+      <div style={{ textAlign: 'start' }}><WorkoutMediaSection w={w} hint /></div>
+    </Fold>
     <Button icon="share" style={{ marginBottom: 8 }} onClick={() => shareWorkoutCardSheet(w)}>{t('Share workout card')}</Button>
     <Button variant="primary" onClick={() => closeThenNav(close, '/home')}>{t('Nice!')}</Button>
   </div>

@@ -14,11 +14,16 @@ import { hasData } from '../lib/health-data.js'
 import { matchSessions, loggableType, alreadyLogged } from '../lib/health-match.js'
 import { requestRecoveryPermissions } from '../lib/health-sync.js'
 import { latestMeasurement } from '../lib/measurements.js'
-import { maxHrOf, zoneBounds } from '../lib/hr-zones.js'
+import { maxHrOf, zoneBounds, ZONE_COLORS } from '../lib/hr-zones.js'
+import { baselineOf } from '../lib/biometrics.js'
 import { workoutDetailSheet } from '../sheets.jsx'
 import LineChart from '../components/LineChart.jsx'
+import Hypnogram from '../components/Hypnogram.jsx'
+import { Tiles, SectionHead } from '../components/Tiles.jsx'
 import Icon from '../components/Icon.jsx'
 import { Button, NumberField } from '../components/ui.jsx'
+
+const READY_COLOR = { ready: 'var(--green)', moderate: 'var(--yellow)', low: 'var(--orange)' }
 import '../nutrition.css'
 import '../health.css'
 
@@ -56,6 +61,13 @@ export default function Health() {
   const month = useMemo(() => Object.keys(days).sort().slice(-30).map(d => ({ d, s: days[d] })), [days])
   const isToday = day === todayISO()
   const hrPoints = useMemo(() => (s?.hr?.series || []).map(([x, y]) => ({ t: x, y, d: day })), [s])
+  const hrSpans = useMemo(() => (s?.exercise || []).map(e => ({ from: e.start, to: e.end, label: e.title || t(e.name) })), [s])
+  // The resting heart rate against the seven days before: the number that decides the day.
+  const bio = S.biometrics || {}
+  const base = useMemo(() => baselineOf(bio, day), [bio, day])
+  const restingHr = s?.restingHr ?? bio[day]?.restingHr ?? null
+  const rhrDelta = restingHr != null && base.restingHr != null ? Math.round(restingHr - base.restingHr) : null
+  const fortnight = useMemo(() => { const out = []; for (let i = 13; i >= 0; i--) { const d = shift(day, -i); out.push({ d, r: bio[d] || null, has: !!days[d] }) } return out }, [bio, days, day])
   const denied = (store?.denied || []).filter(k => DENIED_LABEL[k])
 
   // The band's sessions beside the logged workouts of the day.
@@ -108,24 +120,42 @@ export default function Health() {
       <button className="iconbtn" disabled={isToday} onClick={() => setDay(d => shift(d, 1))} aria-label={t('Next day')}><Icon name="chevronRight" /></button>
     </div>
 
-    <div className="card">
-      <div className="row between" style={{ marginBottom: 6 }}><h2 style={{ margin: 0 }}>{t('Heart rate')}</h2>{s?.restingHr != null && <span className="small" style={{ color: 'var(--label-2)' }}>{t('resting {0}', s.restingHr)}</span>}</div>
-      {s?.hr ? <>
-        <div className="hl-tiles">
-          <div><b>{s.hr.min}</b><span>{t('Low')}</span></div>
-          <div><b>{s.hr.avg}</b><span>{t('Average')}</span></div>
-          <div><b>{s.hr.max}</b><span>{t('Peak')}</span></div>
-          <div><b>{s.hrv != null ? fmtNum(s.hrv) : '–'}</b><span>{t('HRV ms')}</span></div>
-        </div>
-        <div className="chart"><LineChart points={hrPoints} h={140} unit="bpm" color="var(--red)" time /></div>
-        <div className="zones-legend" style={{ marginTop: 4 }}>{zoneBounds(maxHrOf(S)).map(z => <span key={z.zone}><i style={{ background: ['var(--blue)', 'var(--teal)', 'var(--green)', 'var(--orange)', 'var(--red)'][z.zone - 1] }} />Z{z.zone} {z.from}–{z.to}</span>)}</div>
-      </> : <div className="muted small">{t('No heart-rate samples for this day.')}</div>}
+    {/* Fourteen days as dots coloured by the recovery score: jump to a day, see the pattern. */}
+    <div className="hl-strip" role="tablist" aria-label={t('Last 14 days')}>
+      {fortnight.map(x => {
+        const c = x.r?.readiness ? READY_COLOR[x.r.readiness] : x.has ? 'var(--label-3)' : 'var(--surface-2)'
+        return <button key={x.d} role="tab" aria-selected={x.d === day} className={x.d === day ? 'on' : ''} onClick={() => setDay(x.d)} aria-label={fmtDate(x.d, true) + (x.r?.score != null ? ' · ' + x.r.score : '')}>
+          <i style={{ background: c }}>{x.r?.score != null && x.d === day ? x.r.score : ''}</i><span>{new Date(x.d + 'T12:00:00').getDate()}</span>
+        </button>
+      })}
     </div>
 
     <div className="card">
-      <h2>{t('Sleep')}</h2>
+      <SectionHead title={t('Heart rate')} note={s?.hr ? t('{0} readings', fmtNum(s.hr.n || 0)) : null} />
+      {restingHr != null && <div className="hl-hero">
+        <div className="hl-hero-n" style={{ color: rhrDelta != null && rhrDelta >= 4 ? 'var(--orange)' : rhrDelta != null && rhrDelta <= -2 ? 'var(--green)' : 'var(--label)' }}>{restingHr}<small>bpm</small></div>
+        <div className="hl-hero-t">
+          <div className="hl-hero-l">{t('Resting heart rate')}</div>
+          {rhrDelta != null
+            ? <div className="hl-hero-s" style={{ color: rhrDelta >= 4 ? 'var(--orange)' : rhrDelta <= -2 ? 'var(--green)' : 'var(--label-2)' }}>{rhrDelta > 0 ? '▲' : rhrDelta < 0 ? '▼' : '='} {Math.abs(rhrDelta)} · {t('7-day average {0}', fmtNum(Math.round(base.restingHr)))}</div>
+            : <div className="hl-hero-s dim">{t('A seven-day average builds as the band reads more nights.')}</div>}
+        </div>
+      </div>}
+      {s?.hr ? <>
+        <div className="chart"><LineChart points={hrPoints} h={150} unit="bpm" color="var(--red)" time zones={{ max: maxHrOf(S) }} spans={hrSpans} /></div>
+        <div className="row between small" style={{ color: 'var(--label-2)', marginTop: 2 }}>
+          <span>{t('low')} <b style={{ color: 'var(--label)' }}>{s.hr.min}</b> · {t('avg')} <b style={{ color: 'var(--label)' }}>{s.hr.avg}</b> · {t('peak')} <b style={{ color: 'var(--label)' }}>{s.hr.max}</b></span>
+          {s.hrv != null && <span>HRV <b style={{ color: 'var(--label)' }}>{fmtNum(s.hrv)}</b> ms</span>}
+        </div>
+        <div className="zones-legend" style={{ marginTop: 6 }}>{zoneBounds(maxHrOf(S)).map(z => <span key={z.zone}><i style={{ background: ZONE_COLORS[z.zone - 1] }} />Z{z.zone} {z.from}–{z.to}</span>)}</div>
+      </> : <EmptyNote text={t('No heart-rate samples for this day.')} hint={isToday ? t('The band writes its readings when it syncs to its app.') : null} action={isToday ? { label: t('Refresh'), onClick: refresh } : null} />}
+    </div>
+
+    <div className="card">
+      <SectionHead title={t('Sleep')} note={s?.sleep ? `${clock(s.sleep.from)} – ${clock(s.sleep.to)}` : null} />
       {s?.sleep ? <>
-        <div className="row between" style={{ alignItems: 'baseline' }}><div className="big" style={{ fontSize: 26 }}>{hm(s.sleep.total)}</div><span className="small dim">{clock(s.sleep.from)} – {clock(s.sleep.to)} · {Math.round(s.sleep.efficiency * 100)}%</span></div>
+        <div className="row between" style={{ alignItems: 'baseline' }}><div className="big" style={{ fontSize: 26 }}>{hm(s.sleep.total)}</div><span className="small dim">{t('{0}% efficiency', Math.round(s.sleep.efficiency * 100))}{bio[day]?.score != null ? ` · ${t('recovery {0}', bio[day].score)}` : ''}</span></div>
+        {!!s.sleep.stages?.length && <Hypnogram stages={s.sleep.stages} from={s.sleep.from} to={s.sleep.to} />}
         <div className="sleep-bar" aria-hidden="true">
           {['deep', 'rem', 'light', 'awake'].map(k => <i key={k} className={k} style={{ width: (s.sleep[k] / (s.sleep.total + s.sleep.awake) * 100) + '%' }} />)}
         </div>
@@ -133,17 +163,17 @@ export default function Health() {
           <span><i className="deep" />{t('Deep')} {hm(s.sleep.deep)}</span><span><i className="rem" />{t('REM')} {hm(s.sleep.rem)}</span>
           <span><i className="light" />{t('Light')} {hm(s.sleep.light)}</span><span><i className="awake" />{t('Awake')} {hm(s.sleep.awake)}</span>
         </div>
-      </> : <div className="muted small">{t('No sleep recorded for the night before.')}</div>}
+      </> : <EmptyNote text={t('No sleep recorded for the night before.')} hint={t('Wear the band to bed and let its app sync in the morning; the night shows up here and on Home.')} action={denied.includes('sleep') ? { label: t('Allow sleep'), onClick: allowMore } : null} />}
     </div>
 
     <div className="card">
-      <h2>{t('Activity')}</h2>
-      <div className="hl-tiles">
-        <div><b>{fmtNum(s?.steps || 0)}</b><span>{t('Steps')}</span></div>
-        <div><b>{s?.distanceKm ? fmtNum(s.distanceKm) : '–'}</b><span>km</span></div>
-        <div><b>{s?.activeKcal ? fmtNum(s.activeKcal) : '–'}</b><span>{t('Active kcal')}</span></div>
-        <div><b>{s?.totalKcal ? fmtNum(s.totalKcal) : '–'}</b><span>{t('Total kcal')}</span></div>
-      </div>
+      <SectionHead title={t('Activity')} note={base.steps ? t('avg {0} steps', fmtNum(Math.round(base.steps))) : null} />
+      <Tiles items={[
+        { v: fmtNum(s?.steps || 0), l: t('Steps'), color: 'var(--green)' },
+        { v: s?.distanceKm ? fmtNum(s.distanceKm) : '–', l: 'km' },
+        { v: s?.activeKcal ? fmtNum(s.activeKcal) : '–', l: t('Active kcal') },
+        { v: s?.totalKcal ? fmtNum(s.totalKcal) : '–', l: t('Total kcal') },
+      ]} />
       {!!(s?.floors || s?.hydrationMl) && <div className="small dim" style={{ marginTop: 6 }}>{s.floors ? t('{0} floors', fmtNum(s.floors)) : ''}{s.floors && s.hydrationMl ? ' · ' : ''}{s.hydrationMl ? t('{0} ml water', fmtNum(s.hydrationMl)) : ''}</div>}
       <div className="nut-week" style={{ marginTop: 10 }}>
         {week.map(x => {
@@ -158,7 +188,7 @@ export default function Health() {
     </div>
 
     <div className="card">
-      <h2>{t('Workouts on the band')}</h2>
+      <SectionHead title={t('Workouts on the band')} note={matches.length ? tn('{0} session', '{0} sessions', matches.length) : null} />
       {matches.length ? matches.map((m, i) => {
         const e = m.session
         const canLog = !m.workout && loggableType(e.type) && !alreadyLogged(S.workouts, e) && e.minutes >= 8
@@ -170,18 +200,18 @@ export default function Health() {
           </div>
           {canLog && <Button size="sm" variant="tinted" icon="plus" onClick={() => logOne(e)}>{t('Log')}</Button>}
         </div>
-      }) : <div className="muted small">{t('No workout recorded by the band on this day.')}</div>}
+      }) : <EmptyNote text={t('No workout recorded by the band on this day.')} hint={t('Start a workout mode on the band and it lands here, matched to what you logged.')} />}
       {S.bandCardioAuto !== true && matches.some(m => !m.workout && loggableType(m.session.type)) && <div className="small dim" style={{ marginTop: 6 }}>{t('Walks and rides can be logged by themselves: Settings → Recovery → Log band cardio automatically.')}</div>}
     </div>
 
     <div className="card">
-      <div className="row between" style={{ marginBottom: 6 }}><h2 style={{ margin: 0 }}>{t('Body')}</h2><Button size="sm" variant="ghost" icon="pencil" onClick={bodySheet}>{t('Height & max HR')}</Button></div>
-      <div className="hl-tiles">{body.map((x, i) => <div key={i}><b>{x.v}</b><span>{x.l}</span></div>)}</div>
+      <SectionHead title={t('Body')} action={<Button size="sm" variant="ghost" icon="pencil" onClick={bodySheet}>{t('Height & max HR')}</Button>} />
+      <Tiles items={body} />
       {bandWeightIsNew && <div style={{ marginTop: 8 }}><Button size="sm" variant="tinted" icon="scale" onClick={saveBandWeight}>{t('Save {0} as today’s weigh-in', showWeight)}</Button></div>}
     </div>
 
     {month.length > 1 && <div className="card">
-      <h2>{t('Last 30 days')}</h2>
+      <SectionHead title={t('Last 30 days')} note={t('tap a line for the full chart')} />
       <Trend label={t('Resting HR')} points={month.map(x => ({ d: x.d, y: x.s.restingHr })).filter(p => p.y != null)} unit="bpm" color="var(--red)" />
       <Trend label={t('Sleep')} points={month.map(x => ({ d: x.d, y: x.s.sleep ? Math.round(x.s.sleep.total / 6) / 10 : null })).filter(p => p.y != null)} unit="h" color="var(--indigo)" />
       <Trend label={t('Steps')} points={month.map(x => ({ d: x.d, y: x.s.steps || 0 }))} unit="" color="var(--green)" />
@@ -195,13 +225,44 @@ export default function Health() {
   </div>
 }
 
+/** One trend line: this week against the one before, tappable to a full chart with axes and the 7-day mean. */
 function Trend({ label, points, unit, color }) {
+  const openSheet = useUI(s => s.openSheet)
   if (points.length < 2) return null
   const last = points[points.length - 1].y
   const avg = Math.round((points.reduce((n, p) => n + p.y, 0) / points.length) * 10) / 10
-  return <div style={{ marginBottom: 10 }}>
-    <div className="row between" style={{ fontSize: 13 }}><span style={{ color: 'var(--label-2)' }}>{label}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}><b>{fmtNum(last)}</b>{unit ? ' ' + unit : ''} <span className="dim">· {t('avg')} {fmtNum(avg)}</span></span></div>
-    <div className="chart"><LineChart points={points.map(p => ({ t: new Date(p.d + 'T12:00:00').getTime(), y: p.y, d: p.d }))} h={70} unit={unit} color={color} axes={false} /></div>
+  const wk = points.slice(-7), prev = points.slice(-14, -7)
+  const mean = xs => (xs.length ? xs.reduce((n, p) => n + p.y, 0) / xs.length : null)
+  const a = mean(wk), b = mean(prev)
+  const change = a != null && b ? Math.round((a - b) / b * 100) : null
+  const pts = points.map(p => ({ t: new Date(p.d + 'T12:00:00').getTime(), y: p.y, d: p.d }))
+  const open = () => openSheet(close => <TrendSheet label={label} points={pts} unit={unit} color={color} avg={avg} change={change} close={close} />)
+  return <button type="button" className="hl-trend" onClick={open}>
+    <div className="row between" style={{ fontSize: 13 }}>
+      <span style={{ color: 'var(--label-2)' }}>{label}</span>
+      <span style={{ fontVariantNumeric: 'tabular-nums' }}><b>{fmtNum(last)}</b>{unit ? ' ' + unit : ''} <span className="dim">· {t('avg')} {fmtNum(avg)}</span>{change != null && change !== 0 && <span style={{ color: change > 0 ? 'var(--label)' : 'var(--label-2)', marginInlineStart: 6 }}>{change > 0 ? '▲' : '▼'} {Math.abs(change)}%</span>}</span>
+    </div>
+    <div className="chart"><LineChart points={pts} h={70} unit={unit} color={color} axes={false} /></div>
+  </button>
+}
+function TrendSheet({ label, points, unit, color, avg, change, close }) {
+  // The seven-day mean as a second series, so a single bad night reads against its week.
+  const smooth = points.map((p, i) => { const w = points.slice(Math.max(0, i - 6), i + 1); return { t: p.t, y: Math.round(w.reduce((n, x) => n + x.y, 0) / w.length * 10) / 10, d: p.d } })
+  return <>
+    <h3>{label}</h3>
+    <div className="small dim" style={{ marginBottom: 8 }}>{t('30 days · average {0}{1}', fmtNum(avg), unit ? ' ' + unit : '')}{change != null && change !== 0 ? ` · ${t('this week vs last')} ${change > 0 ? '+' : ''}${change}%` : ''}</div>
+    <div className="chart"><LineChart points={points} h={200} unit={unit} series={[{ points: smooth, color: 'var(--label-3)' }, { points, color }]} /></div>
+    <div className="zones-legend" style={{ marginTop: 6 }}><span><i style={{ background: color }} />{t('Daily')}</span><span><i style={{ background: 'var(--label-3)' }} />{t('7-day mean')}</span></div>
+    <div style={{ height: 12 }} />
+    <Button onClick={close}>{t('Close')}</Button>
+  </>
+}
+/** An empty state that says why and offers the fix, inline. */
+function EmptyNote({ text, hint, action }) {
+  return <div className="hl-empty">
+    <div className="muted small">{text}</div>
+    {hint && <div className="small" style={{ color: 'var(--label-2)', marginTop: 2 }}>{hint}</div>}
+    {action && <Button size="sm" variant="tinted" onClick={action.onClick} style={{ marginTop: 8 }}>{action.label}</Button>}
   </div>
 }
 

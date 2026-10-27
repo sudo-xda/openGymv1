@@ -501,6 +501,17 @@ history sheet shows the same, and the Coach's debrief reads the average, the pea
 in zones 4 and 5 and how the rate fell between sets. Android 12 and up asks for the Bluetooth
 permissions once; older Androids ask for location, which scanning needs there.
 
+### The Health tab, at a glance
+
+The heart card leads with the resting heart rate and its delta against the seven days before —
+the number the recovery score turns on — then the day's curve shaded by zone (the area under
+the line changes colour at each zone's floor, lib/hr-zones.js), the band's workouts marked on it
+with their names, and clock hours on the axis. The sleep card shows the night as a hypnogram
+(awake, REM, light, deep over the hours) above the totals. A strip of fourteen dots coloured by
+recovery score jumps between days. Each 30-day trend says this week against last and opens to a
+full chart with the seven-day mean. During a workout the header's live rate is coloured by its
+zone, with the last minute as a sparkline.
+
 ### The band and the log, joined
 
 With the recovery engine on, the Health tab takes the Plan tab's place in the bar (Plan stays a

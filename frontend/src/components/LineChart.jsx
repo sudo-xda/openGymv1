@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { fmtNum, fmtDate, MONTHS, isoOf } from '../lib/format.js'
+import { ZONE_FLOORS, ZONE_COLORS } from '../lib/hr-zones.js'
 import { dateLocale } from '../lib/i18n-core.js'
 import { t } from '../lib/i18n.js'
 
@@ -10,7 +11,11 @@ const W = 340   // viewBox width; the svg stretches to its container, height com
 //        more of it). Used for effort on the weight curve, where the two belong on one line:
 //        the same weight with less left in the tank is not the same session.
 //   note extra text for that point's tooltip.
-// opts: { h, unit, color, axes, goal, invert, series, time }
+// opts: { h, unit, color, axes, goal, invert, series, time, zones, spans }
+//   zones = { max } shades the area under the line by heart-rate zone (lib/hr-zones.js): a
+//   vertical gradient that changes colour at each zone's floor, so a hard hour reads red and an
+//   easy one blue. spans = [{ from, to, label }] marks stretches of the x axis (a band's
+//   workout on the day's curve) as a soft block with its label at the top.
 //   time reads the x axis as hours of one day (a day's heart-rate curve): the ticks are round
 //   hours and the tooltip says the clock time, not the date.
 //   invert flips the y axis, for a scale that counts down as it gets harder (RIR). Without it
@@ -19,7 +24,7 @@ const W = 340   // viewBox width; the svg stretches to its container, height com
 //   number). `points` then only anchors the hover — one per date, its `note` the tooltip — and
 //   the y axis spans every series.
 const clock = ms => new Date(ms).toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' })
-export default function LineChart({ points, h = 150, unit = '', color = 'var(--acc)', axes = true, goal = null, invert = false, series = null, time = false }) {
+export default function LineChart({ points, h = 150, unit = '', color = 'var(--acc)', axes = true, goal = null, invert = false, series = null, time = false, zones = null, spans = null }) {
   const svgRef = useRef(null)
   const wrapRef = useRef(null)
   const tipRef = useRef(null)
@@ -117,6 +122,26 @@ export default function LineChart({ points, h = 150, unit = '', color = 'var(--a
   const poly = pts.map(p => X(p.t).toFixed(1) + ',' + Y(p.y).toFixed(1)).join(' ')
   const last = pts[pts.length - 1]
   const gid = 'g' + Math.round(t0 % 1e7) + '_' + H
+  // The zone gradient: from the top of the plot down, each zone's colour from its ceiling to
+  // its floor, as stops on the plot's height; below zone 1 the line's own colour, faint.
+  const zoneStops = zones && zones.max > 0 && !invert ? (() => {
+    const top = P.t, bottom = H - P.b, span = bottom - top || 1
+    const f = y => Math.max(0, Math.min(1, (Y(y) - top) / span))
+    const stops = []
+    for (let z = ZONE_FLOORS.length - 1; z >= 0; z--) {
+      const floor = ZONE_FLOORS[z] * zones.max
+      const ceil = z + 1 < ZONE_FLOORS.length ? ZONE_FLOORS[z + 1] * zones.max : Infinity
+      const a = ceil === Infinity ? 0 : f(ceil), b = f(floor)
+      if (b <= a) continue
+      stops.push({ at: a, c: ZONE_COLORS[z] }, { at: b, c: ZONE_COLORS[z] })
+    }
+    stops.push({ at: f(ZONE_FLOORS[0] * zones.max), c: color }, { at: 1, c: color })
+    return stops
+  })() : null
+  const spanBoxes = Array.isArray(spans) ? spans.map(sp => {
+    const a = Math.max(P.l, X(Math.max(sp.from, t0))), b = Math.min(W - P.r, X(Math.min(sp.to, t1)))
+    return b - a > 2 ? { x: a, w: b - a, label: sp.label } : null
+  }).filter(Boolean) : []
   const hoverSource = single ? [points[0]] : points
   const hoverDates = hoverSource.map(p => p.d || isoOf(new Date(p.t)))
   const showYear = new Set(hoverDates.map(iso => new Date(iso + 'T12:00:00').getFullYear())).size > 1
@@ -140,10 +165,14 @@ export default function LineChart({ points, h = 150, unit = '', color = 'var(--a
       onMouseLeave={() => setHover(null)}
       onTouchStart={onMove} onTouchMove={onMove}>
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ aspectRatio: `${W}/${H}` }}>
-        <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+        <defs>{zoneStops
+          ? <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            {zoneStops.map((st, i) => <stop key={i} offset={(st.at * 100).toFixed(1) + '%'} stopColor={st.c} stopOpacity={st.c === color ? 0.18 : 0.42} />)}
+          </linearGradient>
+          : <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor={color} stopOpacity=".28" />
           <stop offset="1" stopColor={color} stopOpacity="0" />
-        </linearGradient></defs>
+        </linearGradient>}</defs>
         {gridlines}
         {goal != null && isFinite(goal) && <>
           <line x1={P.l} y1={Y(goal)} x2={W - P.r} y2={Y(goal)} stroke="var(--yellow)" strokeWidth="1.6" strokeDasharray="7 4" />
@@ -151,6 +180,10 @@ export default function LineChart({ points, h = 150, unit = '', color = 'var(--a
         </>}
         {/* The first series is drawn widest and underneath, each next one thinner on top, so
             lines that share their values show as nested stripes instead of hiding each other. */}
+        {spanBoxes.map((b, i) => <g key={'sp' + i}>
+          <rect x={b.x} y={P.t} width={b.w} height={H - P.t - P.b} fill="var(--label-3)" opacity="0.14" rx="3" />
+          {b.label && b.w > 36 && <text x={b.x + 4} y={P.t + 10} fontSize="9" fill="var(--label-2)">{b.label}</text>}
+        </g>)}
         {multi ? series.map((s, k) => {
           const sw = 2 + (series.length - 1 - k) * 2.4
           return <g key={'s' + k}>

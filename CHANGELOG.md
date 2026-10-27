@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- The Health tab, redrawn around the numbers that decide the day: the resting heart rate leads
+  the heart card with its delta against the seven-day average; the day's curve is shaded by
+  heart-rate zone with the band's workouts marked on it and clock hours on the axis; the night
+  is a hypnogram (stages over the hours) above the totals; fourteen dots coloured by recovery
+  score jump between days; the 30-day trends say this week against last and open to a full
+  chart with the seven-day mean; empty states say why and offer the fix.
+- The live heart rate in the workout header is coloured by zone, with the last minute as a
+  sparkline and the zone number beside it.
+- Home: the Recovery card carries the Coach — one line from the open thread and a tap into the
+  chat — so the morning is one card, not two. The Coach's own door stays for a Home without the
+  recovery engine.
+- The finish summary reads in one screen: the numbers and the Coach's read first, then Heart and
+  body, then Details, as folds.
+- One tile row and one section header across Home, Health and Nutrition.
 - Band heart rate over Bluetooth: finding a Mi Band works now — the band does not advertise the
   Heart Rate Service, so the picker no longer filters the scan on it; it lists the band the phone
   is already connected to first, then anything advertising a heart rate, then band-like names,

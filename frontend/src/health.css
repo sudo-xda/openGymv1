@@ -1,5 +1,36 @@
 /* The Health screen (views/Health.jsx): the band's day from Health Connect. */
 .hl-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.hl-tiles>div.tappable:active{background:var(--surface-3,var(--surface-2))}
+.hl-tiles b small{font-size:11px;font-weight:600}
+.sec-head{margin-bottom:8px}
+/* the resting heart rate as the card's lead */
+.hl-hero{display:flex;align-items:center;gap:12px;margin:2px 0 8px}
+.hl-hero-n{font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.hl-hero-n small{font-size:13px;font-weight:500;color:var(--label-2);margin-inline-start:4px;letter-spacing:0}
+.hl-hero-l{font-size:13px;font-weight:600}
+.hl-hero-s{font-size:12.5px;margin-top:2px}
+/* fourteen days as dots coloured by the recovery score */
+.hl-strip{display:flex;justify-content:space-between;gap:2px;padding:2px 2px 10px}
+.hl-strip button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;padding:0;min-width:0}
+.hl-strip i{display:flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:99px;font-style:normal;font-size:9px;font-weight:700;color:var(--on-acc);transition:transform var(--fast) var(--ease)}
+.hl-strip button.on i{transform:scale(1.35);box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--label-3)}
+.hl-strip span{font-size:10px;color:var(--label-2)}
+.hl-strip button.on span{color:var(--label);font-weight:600}
+/* the hypnogram */
+.hypno{display:block;width:100%;height:auto;margin:8px 0 2px}
+.hypno rect.deep{fill:var(--indigo)}.hypno rect.rem{fill:var(--purple)}.hypno rect.light{fill:var(--blue)}.hypno rect.awake{fill:var(--orange)}
+/* a trend line, tappable */
+.hl-trend{display:block;width:100%;text-align:start;background:none;padding:4px 0 6px;color:var(--label);border-radius:8px}
+.hl-trend:active{background:var(--surface-2)}
+.hl-empty{padding:2px 0}
+/* the finish summary's folds */
+.fold{margin:4px 0 8px;border-top:1px solid var(--sep-op)}
+.fold-h{display:flex;align-items:center;gap:8px;width:100%;background:none;padding:10px 0;color:var(--label);text-align:start}
+.fold-t{font-size:13px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--label-2)}
+.fold-s{font-size:12.5px;color:var(--label-2);margin-inline-start:auto;font-variant-numeric:tabular-nums}
+.fold-h .chev{color:var(--label-3);margin-inline-start:auto}
+.fold-s+.chev{margin-inline-start:0}
+.fold-b{padding-bottom:4px}
 .hl-tiles>div{display:flex;flex-direction:column;gap:2px;padding:10px 8px;border-radius:12px;background:var(--surface-2);min-width:0}
 .hl-tiles b{font-size:18px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hl-tiles span{font-size:10.5px;color:var(--label-2);line-height:1.2}
@@ -13,7 +44,9 @@
 .sleep-legend span{display:inline-flex;align-items:center;gap:5px}
 .sleep-legend i{width:9px;height:9px;border-radius:99px;display:inline-block}
 /* the live heart rate in the workout header */
-.whdr-hr{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600;color:var(--red);font-variant-numeric:tabular-nums}
+.whdr-hr{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600;color:var(--c,var(--red));font-variant-numeric:tabular-nums}
+.whdr-spark{width:36px;height:14px;display:block;opacity:.9}
+.whdr-z{font-style:normal;font-size:9.5px;font-weight:700;padding:1px 4px;border-radius:5px;background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--c);line-height:1.2}
 .whdr-hr .icn{font-size:13px;animation:beat 1s infinite ease-in-out}
 @keyframes beat{0%,100%{transform:scale(1)}30%{transform:scale(1.18)}}
 .whdr-hr.off{color:var(--label-3)}

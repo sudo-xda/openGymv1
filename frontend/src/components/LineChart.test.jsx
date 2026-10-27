@@ -129,3 +129,18 @@ describe('LineChart time axis', () => {
     expect(tip).not.toContain(fmtDate(isoOf(new Date(t0)), true))
   })
 })
+
+describe('LineChart zones and spans', () => {
+  it('shades the area by heart-rate zone and marks a span with its label', () => {
+    const t0 = new Date(2026, 9, 26, 8).getTime()
+    const points = []
+    for (let i = 0; i <= 60; i++) points.push({ t: t0 + i * 60000, y: 60 + i * 2 })   // 60 → 180 over an hour
+    act(() => root.render(<LineChart points={points} axes time zones={{ max: 190 }} spans={[{ from: t0 + 10 * 60000, to: t0 + 40 * 60000, label: 'Run' }]} />))
+    const stops = [...container.querySelectorAll('linearGradient stop')]
+    expect(stops.length).toBeGreaterThanOrEqual(10)                       // five zones, two stops each, plus the floor
+    expect(new Set(stops.map(s => s.getAttribute('stop-color'))).size).toBeGreaterThanOrEqual(5)
+    const rect = container.querySelector('rect[rx="3"]')
+    expect(rect).not.toBeNull()
+    expect([...container.querySelectorAll('text')].map(n => n.textContent)).toContain('Run')
+  })
+})

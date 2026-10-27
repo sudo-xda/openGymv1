@@ -139,3 +139,25 @@ describe('a day against the week before', () => {
     expect(coachView(history, DAY).today).toBeNull()
   })
 })
+
+describe('sleep segments', () => {
+  it('keeps the night as a clipped, merged timeline for a hypnogram', () => {
+    const w = nightWindow(DAY)
+    const s = sleepOf([goodNight()], w)
+    expect(Array.isArray(s.segments)).toBe(true)
+    expect(s.segments.length).toBeGreaterThan(2)
+    for (const [from, to, kind] of s.segments) {
+      expect(to).toBeGreaterThan(from)
+      expect(from).toBeGreaterThanOrEqual(w.from); expect(to).toBeLessThanOrEqual(w.to)
+      expect(['deep', 'rem', 'light', 'awake']).toContain(kind)
+    }
+    // Sorted and never overlapping; two neighbours never share a kind (they were merged).
+    for (let i = 1; i < s.segments.length; i++) {
+      expect(s.segments[i][0]).toBeGreaterThanOrEqual(s.segments[i - 1][1])
+      if (s.segments[i][0] - s.segments[i - 1][1] <= 60000) expect(s.segments[i][2]).not.toBe(s.segments[i - 1][2])
+    }
+    // The timeline adds up to the stage minutes.
+    const mins = k => Math.round(s.segments.filter(x => x[2] === k).reduce((n, x) => n + (x[1] - x[0]), 0) / 60000)
+    expect(mins('deep')).toBe(s.deep); expect(mins('rem')).toBe(s.rem)
+  })
+})

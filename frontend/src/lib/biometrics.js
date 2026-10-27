@@ -60,23 +60,39 @@ const pairs = rows => (Array.isArray(rows) ? rows : []).map(r => (Array.isArray(
 export function sleepOf(sleep, window) {
   const m = { deep: 0, light: 0, rem: 0, awake: 0 }
   let first = Infinity, last = -Infinity
+  // The night as a timeline, for a hypnogram: `[start, end, kind]`, clipped to the window,
+  // touching segments of one kind merged.
+  const segments = []
+  const push = (start, end, kind) => {
+    const from = Math.max(start, window.from), to = Math.min(end, window.to)
+    if (to <= from) return
+    const prev = segments[segments.length - 1]
+    if (prev && prev[2] === kind && from - prev[1] <= 60000) prev[1] = Math.max(prev[1], to)
+    else segments.push([from, to, kind])
+  }
   for (const s of parseSleep(sleep)) {
     if (!clip(s.start, s.end, window)) continue
     first = Math.min(first, Math.max(s.start, window.from)); last = Math.max(last, Math.min(s.end, window.to))
-    if (!s.stages.length) { m.light += minutes(clip(s.start, s.end, window)); continue }
+    if (!s.stages.length) { m.light += minutes(clip(s.start, s.end, window)); push(s.start, s.end, 'light'); continue }
     for (const st of s.stages) {
       const ms = clip(st.start, st.end, window)
       if (!ms) continue
-      if (st.stage === STAGE.DEEP) m.deep += minutes(ms)
-      else if (st.stage === STAGE.REM) m.rem += minutes(ms)
-      else if (st.stage === STAGE.LIGHT || st.stage === STAGE.SLEEPING || st.stage === STAGE.UNKNOWN) m.light += minutes(ms)
-      else if (st.stage === STAGE.AWAKE || st.stage === STAGE.AWAKE_IN_BED) m.awake += minutes(ms)
+      const kind = stageKind(st.stage)
+      if (kind) { m[kind] += minutes(ms); push(st.start, st.end, kind) }
       // OUT_OF_BED is neither asleep nor in bed
     }
   }
   const total = m.deep + m.light + m.rem
   if (!total) return null
-  return { ...m, total, efficiency: Math.round((total / (total + m.awake)) * 100) / 100, from: first, to: last }
+  return { ...m, total, efficiency: Math.round((total / (total + m.awake)) * 100) / 100, from: first, to: last, segments }
+}
+/** A Health Connect stage code as the app's four kinds; null for out of bed. */
+export function stageKind(stage) {
+  if (stage === STAGE.DEEP) return 'deep'
+  if (stage === STAGE.REM) return 'rem'
+  if (stage === STAGE.LIGHT || stage === STAGE.SLEEPING || stage === STAGE.UNKNOWN) return 'light'
+  if (stage === STAGE.AWAKE || stage === STAGE.AWAKE_IN_BED) return 'awake'
+  return null
 }
 
 /**

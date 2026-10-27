@@ -11,6 +11,9 @@ import { fmtNum, todayISO } from '../lib/format.js'
 import { effectiveRoutines } from '../lib/history.js'
 import { baselineOf, adviceOf } from '../lib/biometrics.js'
 import { refreshRecovery } from '../lib/recovery-engine.js'
+import { useCoachGate } from '../lib/use-coach-gate.js'
+import { plainText } from '../lib/markdown.js'
+import { Tiles, SectionHead } from './Tiles.jsx'
 import Icon from './Icon.jsx'
 import Markdown from './Markdown.jsx'
 import { Button } from './ui.jsx'
@@ -26,6 +29,13 @@ export const adviceLine = (advice, routineName) => {
   if (advice === 'go') return routineName ? t('Green light for {0}. Push the top sets.', routineName) : t('Green light. Push the top sets.')
   return ''
 }
+/** The last thing said in the open thread, one line, for the card's Coach footer. */
+export function lastCoachLine(S) {
+  const threads = S.coach?.threads || []
+  const th = threads.find(x => x.id === S.coach?.activeThread) || threads[threads.length - 1]
+  const m = [...(th?.messages || [])].reverse().find(x => typeof x.text === 'string' && x.text.trim())
+  return m ? (m.md ? plainText(m.text) : m.text).replace(/\s+/g, ' ').slice(0, 80) : ''
+}
 export const refreshToast = r => r.ok ? t('Recovery updated')
   : r.reason === 'permission' ? t('Allow reading in Settings → Recovery first.')
     : r.reason === 'nonight' ? t('No night for today yet. Sync the band in its app and refresh.')
@@ -35,6 +45,7 @@ export const refreshToast = r => r.ok ? t('Recovery updated')
 export default function RecoveryCard() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
+  const gate = useCoachGate()
   const toast = useUI(s => s.toast)
   const [busy, setBusy] = useState(false)
   const day = todayISO()
@@ -55,23 +66,22 @@ export default function RecoveryCard() {
   const color = shown?.readiness ? COLOR[shown.readiness] : 'var(--label-3)'
   const delta = shown?.restingHr != null && base.restingHr != null ? Math.round(shown.restingHr - base.restingHr) : null
   return <div className="card" data-recovery-card>
-    <div className="row between" style={{ marginBottom: 8 }}>
-      <h2 style={{ margin: 0 }}>{t('Recovery')}{shown && shown.d !== day ? <span className="dim" style={{ textTransform: 'none' }}> · {t('last reading')}</span> : null}</h2>
-      <Button size="sm" icon="repeat" disabled={busy} onClick={refresh}>{busy ? t('Reading…') : t('Refresh')}</Button>
-    </div>
+    <SectionHead title={t('Recovery')} note={shown && shown.d !== day ? t('last reading') : null} action={<Button size="sm" icon="repeat" disabled={busy} onClick={refresh}>{busy ? t('Reading…') : t('Refresh')}</Button>} />
     {shown ? <>
       <div className="rec-hero">
         <div className="deb-ring rec-ring" style={{ '--pct': (shown.score || 0) / 100, '--c': color }}><span>{shown.score ?? '–'}</span></div>
         <div className="grow">
           <div className="rec-word" style={{ color }}>{shown.readiness ? WORD[shown.readiness]() : t('No night found yet')}</div>
-          <div className="rec-tiles">
-            <div><b>{shown.restingHr ?? '–'}{delta != null && delta !== 0 ? <small style={{ color: delta > 0 ? 'var(--orange)' : 'var(--green)' }}> {delta > 0 ? '+' : ''}{delta}</small> : null}</b><span>{t('Resting HR')}{base.restingHr ? ` · ${t('avg')} ${fmtNum(Math.round(base.restingHr))}` : ''}</span></div>
-            <div><b>{hm(shown.sleep?.total)}</b><span>{t('Sleep')}{shown.sleep ? ` · ${Math.round(shown.sleep.efficiency * 100)}%` : ''}</span></div>
-            <div><b>{shown.sleep ? hm(shown.sleep.deep + shown.sleep.rem) : '–'}</b><span>{t('Deep + REM')}</span></div>
-            <div><b>{shown.hrv != null ? fmtNum(shown.hrv) + ' ms' : fmtNum(shown.steps || 0)}</b><span>{shown.hrv != null ? t('HRV') : t('Steps')}</span></div>
-          </div>
+          {advice !== 'none' && <div className="small" style={{ color: 'var(--label-2)' }}>{routine ? routine.name : t('Rest day')}</div>}
         </div>
       </div>
+      <div style={{ height: 10 }} />
+      <Tiles items={[
+        { v: shown.restingHr ?? '–', l: t('Resting HR'), sub: base.restingHr ? `${t('avg')} ${fmtNum(Math.round(base.restingHr))}` : null, delta: delta != null && delta !== 0 ? (delta > 0 ? '+' : '') + delta : null, deltaColor: delta > 0 ? 'var(--orange)' : 'var(--green)' },
+        { v: hm(shown.sleep?.total), l: t('Sleep'), sub: shown.sleep ? `${Math.round(shown.sleep.efficiency * 100)}%` : null },
+        { v: shown.sleep ? hm(shown.sleep.deep + shown.sleep.rem) : '–', l: t('Deep + REM') },
+        { v: shown.hrv != null ? fmtNum(shown.hrv) + ' ms' : fmtNum(shown.steps || 0), l: shown.hrv != null ? t('HRV') : t('Steps') },
+      ]} />
       {advice !== 'none' && <div className="rec-advice" style={{ '--c': color }}>
         <Icon name={advice === 'deload' ? 'warning' : advice === 'easy' ? 'gauge' : 'bolt'} />
         <span>{adviceLine(advice, routine?.name)}</span>
@@ -84,7 +94,12 @@ export default function RecoveryCard() {
         {shown.flags.map(f => <span key={f} className="tag">{FLAG[f] ? FLAG[f]() : f}</span>)}
       </div>}
     </> : <div className="muted small">{t('Reading Health Connect. Refresh once the band has synced to its app.')}</div>}
-    <div className="row" style={{ justifyContent: 'flex-end', marginTop: 4 }}>
+    <div className="rec-foot">
+      {gate.ok && <button type="button" className="rec-ask" onClick={() => nav('/coach')}>
+        <span className="coach-av sm"><Icon name="chat" /><i /></span>
+        <span className="grow"><b>{t('Ask the Coach')}</b><small>{lastCoachLine(S) || t('About today, your food or the next session.')}</small></span>
+        <Icon name="chevronRight" className="chev" />
+      </button>}
       <Button size="sm" variant="ghost" trailingIcon="chevronRight" onClick={() => nav('/health')}>{t('All health data')}</Button>
     </div>
   </div>

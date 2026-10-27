@@ -220,8 +220,9 @@ export default function Home() {
     )}
 
     <RecoveryCard />
+    {/* The Coach has a door of its own only while the recovery card, which carries one, is off. */}
 
-    <CoachDoor S={S} nav={nav} />
+    {S.recoveryOn !== true && <CoachDoor S={S} nav={nav} />}
 
     {S.showNutritionCard !== false && <NutritionCard />}
 
